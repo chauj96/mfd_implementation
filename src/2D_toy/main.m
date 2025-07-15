@@ -1,12 +1,13 @@
 clear; clc; close all;
 
 dt = 1;
-nx = 50;
-nz = 50;
-Lx = 2.0;
+nx = 1;
+nz = 2;
+Lx = 1.0;
 Lz = 2.0;
 rho = 1000;
-g_c = 10.0 * (1.0e-6);
+% g_c = 10.0 * (1.0e-6);
+g_c = 0;
 
 [cell_struct, face_struct] = buildStructureGrid(nx, nz, Lx, Lz);
 
