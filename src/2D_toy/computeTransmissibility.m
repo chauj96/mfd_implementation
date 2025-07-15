@@ -13,17 +13,19 @@ function face_struct = computeTransmissibility(cell_struct, face_struct)
     
             xL = cell_struct(cL).center(:);
             xR = cell_struct(cR).center(:);
-    
+            xF = face_struct(f).center(:);
+
             % permeability
-            K1 = cell_struct(cL).K;
-            K2 = cell_struct(cR).K;
+            KL = cell_struct(cL).K;
+            KR = cell_struct(cR).K;
+            
     
             % normal projection
-            d = abs(dot(xR - xL, nf));
-    
-            % harmonic average + distance corrector
-            K_harm = 2 * K1 * K2 / (K1 + K2);
-            T = K_harm * Af;
+            dL = abs(dot(xF - xL, nf));
+            dR = abs(dot(xF - xR, nf));
+            invTL = dL / KL;
+            invTR = dR / KR;
+            invT = Af * (invTL+invTR);
     
         else
             % Boundary face
@@ -34,10 +36,10 @@ function face_struct = computeTransmissibility(cell_struct, face_struct)
             K = cell_struct(c).K;
     
             d = abs(dot(xF - xC, nf));
-            T = K * Af;
+            invT = d / (K * Af);
         end
     
-        face_struct(f).T = T;
+        face_struct(f).invT = invT;
     end
 
 

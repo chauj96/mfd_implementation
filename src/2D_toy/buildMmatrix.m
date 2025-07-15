@@ -3,11 +3,11 @@ function M = buildMmatrix(face_struct)
 % M: diagonal matrix with T_f values
 
 n_faces = length(face_struct);
-T_vec = zeros(n_faces,1);
+invT_vec = zeros(n_faces,1);
 
 for i = 1:n_faces
-    T_vec(i) = face_struct(i).T;
+    invT_vec(i) = face_struct(i).invT;
 end
 
-M = spdiags(T_vec, 0, n_faces, n_faces);
+M = spdiags(invT_vec, 0, n_faces, n_faces);
 end

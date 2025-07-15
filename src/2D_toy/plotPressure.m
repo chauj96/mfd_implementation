@@ -11,8 +11,9 @@ function plotPressure(cell_struct, p_sol)
 
     % Scatter plot (colored by pressure)
     scatter(xc, zc, 100, p_sol, 'filled');
+    %plot(zc, p_sol, '-o', 'LineWidth', 1.5, 'MarkerSize', 6);
     colorbar;
-    xlabel('x'); ylabel('z');
+    xlabel('z'); ylabel('pressue');
     title('Pressure field');
     axis equal tight;
 end

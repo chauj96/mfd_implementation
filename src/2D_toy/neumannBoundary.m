@@ -11,7 +11,7 @@ for idx = 1:length(f_ids)
     A(:, f) = 0;
     A(f, f) = 1;
 
-    rhs_BC(f) = face_struct(idx).BC_flux;
+    rhs_BC(f) = face_struct(f).BC_flux;
 end
 
 

@@ -18,7 +18,7 @@ function [cell_struct, face_struct] = buildStructureGrid(nx, nz, Lx, Lz)
         for i = 1:(nx+1)
             face_counter = face_counter + 1;
             x = (i - 1) * dx;
-            z = (j - 0.5) * dz;
+            z = (j - 1) * dz + dz / 2;
     
             face_struct(face_counter).center = [x, z];
             face_struct(face_counter).normal = [1; 0];
@@ -34,7 +34,7 @@ function [cell_struct, face_struct] = buildStructureGrid(nx, nz, Lx, Lz)
     for j = 1:(nz+1)
         for i = 1:nx
             face_counter = face_counter + 1;
-            x = (i - 0.5) * dx;
+            x = (i - 1) * dx + dx / 2;
             z = (j - 1) * dz;
     
             face_struct(face_counter).center = [x, z];
@@ -55,8 +55,8 @@ function [cell_struct, face_struct] = buildStructureGrid(nx, nz, Lx, Lz)
         for i = 1:nx
             cell_id = cell_id + 1;
     
-            xc = (i - 0.5) * dx;
-            zc = (j - 0.5) * dz;
+            xc = (i - 1) * dx + dx / 2;
+            zc = (j - 1) * dz + dz / 2;
             cell_struct(cell_id).center = [xc, zc];
             cell_struct(cell_id).volume = dx * dz;
     
