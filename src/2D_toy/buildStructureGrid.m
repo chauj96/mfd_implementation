@@ -8,12 +8,12 @@ function [cell_struct, face_struct] = buildStructureGrid(nx, nz, Lx, Lz)
     n_faces_z = (nz + 1) * nx;
     n_faces = n_faces_x + n_faces_z;
     
-    % Face storage
+    % FACE STORAGE
     face_struct = struct('cells', {}, 'normal', {}, 'center', {}, 'area', {});
     face_counter = 0;
     face_map = containers.Map;
     
-    % Vertical faces (left-right)
+    % vertical faces (left-right)
     for j = 1:nz
         for i = 1:(nx+1)
             face_counter = face_counter + 1;
@@ -30,7 +30,7 @@ function [cell_struct, face_struct] = buildStructureGrid(nx, nz, Lx, Lz)
         end
     end
     
-    % Horizontal faces (bottom-top)
+    % horizontal faces (bottom-top)
     for j = 1:(nz+1)
         for i = 1:nx
             face_counter = face_counter + 1;
@@ -47,7 +47,7 @@ function [cell_struct, face_struct] = buildStructureGrid(nx, nz, Lx, Lz)
         end
     end
     
-    % Cells and their connection to faces
+    % CELL STORAGE
     cell_struct = struct('center', {}, 'faces', {}, 'face_dirs', {}, 'volume', {});
     cell_id = 0;
     
@@ -60,7 +60,7 @@ function [cell_struct, face_struct] = buildStructureGrid(nx, nz, Lx, Lz)
             cell_struct(cell_id).center = [xc, zc];
             cell_struct(cell_id).volume = dx * dz;
     
-            % Get face indices
+            % get face indices
             fL = face_map(sprintf('v_%d_%d', i, j));
             fR = face_map(sprintf('v_%d_%d', i+1, j));
             fB = face_map(sprintf('h_%d_%d', i, j));
@@ -69,7 +69,7 @@ function [cell_struct, face_struct] = buildStructureGrid(nx, nz, Lx, Lz)
             cell_struct(cell_id).faces = [fL, fR, fB, fT];
             cell_struct(cell_id).face_dirs = [-1, 1, -1, 1];
     
-            % Update each face's connected cells
+            % update each face's connected cells
             face_struct(fL).cells = [face_struct(fL).cells, cell_id];
             face_struct(fR).cells = [face_struct(fR).cells, cell_id];
             face_struct(fB).cells = [face_struct(fB).cells, cell_id];

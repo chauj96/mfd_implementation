@@ -1,5 +1,5 @@
 function face_struct = computeTransmissibility(cell_struct, face_struct)
-% Compute transmissibility for each face based on harmonic averaging
+    % Compute transmissibility for each face based on harmonic averaging
 
     for f = 1:length(face_struct)
         cids = face_struct(f).cells;       % cell indices (could be 1 or 2)
