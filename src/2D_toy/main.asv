@@ -3,21 +3,21 @@ clear; clc; close all;
 addpath('PolyMesher/');
 
 % case options: 'structured' or 'unstructured'
-case_type = 'unstructured';
+case_type = 'structured';
 
 dt = 1;
-nx = 50;
-nz = 50;
-Lx = 2.0;
+nx = 1;
+nz = 2;
+Lx = 1.0;
 Lz = 2.0;
 rho = 1000;
-g_c = 10.0 * (1.0e-6);
+g_c = 0.0 * (1.0e-6);
 % g_c = 0;
 
 if strcmp(case_type, 'structured')
     [cell_struct, face_struct] = buildStructureGrid(nx, nz, Lx, Lz);
 elseif strcmp(case_type, 'unstructured')
-    domain = @(, Lz) MbbDomain(Demand, Arg, Lx, Lz);
+    domain = @MbbDomain; % this domain also sets with Lx = 2, Lz = 2 -> BdBox = [0 2 0 2];
     n_cells = 1000; % we can change the number of cells
 
     [cell_struct, face_struct, vertices, cells] = buildPolyGrid(domain, n_cells);
@@ -28,6 +28,15 @@ end
 
 % Step 2: Build matrix M, B, T / Assemble the matrices
 M = buildMmatrix(cell_struct, face_struct);
+% TPFA case
+M_tpfa = buildMmatrix(cells, faces, 'tpfa');
+
+% General parametric with t = 2 (quasi-tpfa)
+M_qtpfa = buildMmatrix(cells, faces, 'general_parametric', 2);
+
+% General parametric with t = 4 (quasi-RT in 2D)
+M_qrt2d = buildMmatrix(cells, faces, 'general_parametric', 4);
+
 B = buildBmatrix(cell_struct, face_struct);
 T = buildTmatrix(cell_struct);
 

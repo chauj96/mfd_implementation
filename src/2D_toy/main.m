@@ -11,15 +11,14 @@ nz = 50;
 Lx = 2.0;
 Lz = 2.0;
 rho = 1000;
-g_c = 10.0 * (1.0e-6);
+g_c = 0.0 * (1.0e-6);
 % g_c = 0;
 
 if strcmp(case_type, 'structured')
     [cell_struct, face_struct] = buildStructureGrid(nx, nz, Lx, Lz);
 elseif strcmp(case_type, 'unstructured')
     domain = @MbbDomain; % this domain also sets with Lx = 2, Lz = 2 -> BdBox = [0 2 0 2];
-    n_cells = 1000; % we can change the number of cells
-
+    n_cells = nz*nx; % we can change the number of cells
     [cell_struct, face_struct, vertices, cells] = buildPolyGrid(domain, n_cells);
 end
 
@@ -27,7 +26,12 @@ end
 [cell_struct, face_struct] = initPhysicalParams(cell_struct, face_struct, Lx, Lz, case_type);
 
 % Step 2: Build matrix M, B, T / Assemble the matrices
-M = buildMmatrix(cell_struct, face_struct);
+% TPFA case
+%M = buildMmatrix(cell_struct, face_struct, 'tpfa');
+
+% General parametric with t = 6 (quasi-RT)
+M = buildMmatrix(cell_struct, face_struct, 'general_parametric', 6);
+
 B = buildBmatrix(cell_struct, face_struct);
 T = buildTmatrix(cell_struct);
 
