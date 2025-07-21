@@ -1,4 +1,4 @@
-clear; clc;
+clear; clc; close all;
 
 addpath('PolyMesher/');
 
@@ -66,11 +66,20 @@ n_faces = length(face_struct);
 m_sol = sol(1:n_faces);
 p_sol = sol(n_faces+1:end);
 
-m_flux = inv(M) * (B' * p_sol - rhs_Dirichlet) 
+m_flux = inv(M) * (B' * p_sol - rhs_Dirichlet); 
 
 % Step 6: Plot the pressure field
 plotPressurePolygonal(vertices, cells, p_sol);
 
 % Step 7: Plot stream lines from flux
 plotStreamlinesFromFlux(cell_struct, face_struct, m_flux);
+
+% (Option) Check perturbation / mesh structure
+figure;
+for c = 1:length(cells)
+    poly = vertices(cells{c}, :);
+    patch(poly(:,1), poly(:,2), 'w', 'EdgeColor', 'k');
+end
+axis equal;
+title('Check perturbation and mesh structure');
 

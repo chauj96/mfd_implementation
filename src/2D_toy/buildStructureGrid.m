@@ -1,13 +1,5 @@
 function [cell_struct, face_struct, vertices, cells] = buildStructureGrid(nx, nz, Lx, Lz)
-    
-    dx = Lx / nx;
-    dz = Lz / nz;
-    
-    n_cells = nx * nz;
-    n_faces_x = (nx + 1) * nz;
-    n_faces_z = (nz + 1) * nx;
-    n_faces = n_faces_x + n_faces_z;
-
+   
     % create vertex list
     xv = linspace(0, Lx, nx+1);
     zv = linspace(0, Lz, nz+1);
@@ -15,8 +7,8 @@ function [cell_struct, face_struct, vertices, cells] = buildStructureGrid(nx, nz
     X = X';
     Z = Z'; 
 
-    amp_x = 0.0 * 0.025;        % amplitude of x-perturbation
-    amp_z = 0.0 * 0.025; 
+    amp_x = 0.025;        % amplitude of x-perturbation
+    amp_z = 0.025; 
     % Perturb internal vertices only (excluding boundaries)
     for i = 2:nx    
         for j = 2:nz 
@@ -24,8 +16,6 @@ function [cell_struct, face_struct, vertices, cells] = buildStructureGrid(nx, nz
             Z(i,j) = Z(i,j) + amp_z * cos(4*pi * X(i,j)) * sin(4*pi * Z(i,j));
         end
     end
-    
-    vertices = [X(:), Z(:)];
 
     vertices = [X(:), Z(:)];
     
@@ -33,76 +23,76 @@ function [cell_struct, face_struct, vertices, cells] = buildStructureGrid(nx, nz
     face_struct = struct('cells', {}, 'normal', {}, 'center', {}, 'area', {});
     face_counter = 0;
     face_map = containers.Map;
-    
-    % vertical faces (left-right)
-    for j = 1:nz
-        for i = 1:(nx+1)
-            face_counter = face_counter + 1;
-            x = (i - 1) * dx;
-            z = (j - 1) * dz + dz / 2;
-    
-            face_struct(face_counter).center = [x, z];
-            face_struct(face_counter).normal = [1; 0];
-            face_struct(face_counter).cells = [];
-            face_struct(face_counter).area = dz;
-    
-            key = sprintf('v_%d_%d', i, j);
-            face_map(key) = face_counter;
-        end
-    end
-    
-    % horizontal faces (bottom-top)
-    for j = 1:(nz+1)
-        for i = 1:nx
-            face_counter = face_counter + 1;
-            x = (i - 1) * dx + dx / 2;
-            z = (j - 1) * dz;
-    
-            face_struct(face_counter).center = [x, z];
-            face_struct(face_counter).normal = [0; 1];
-            face_struct(face_counter).cells = [];
-            face_struct(face_counter).area = dx;
-    
-            key = sprintf('h_%d_%d', i, j);
-            face_map(key) = face_counter;
-        end
-    end
-    
+
     % CELL STORAGE
     cell_struct = struct('center', {}, 'faces', {}, 'face_dirs', {}, 'volume', {});
+    cells = {};
     cell_id = 0;
-    
+
     for j = 1:nz
         for i = 1:nx
             cell_id = cell_id + 1;
-    
-            xc = (i - 1) * dx + dx / 2;
-            zc = (j - 1) * dz + dz / 2;
-            cell_struct(cell_id).center = [xc, zc];
-            cell_struct(cell_id).volume = dx * dz;
-    
-            % get face indices
-            fL = face_map(sprintf('v_%d_%d', i, j));
-            fR = face_map(sprintf('v_%d_%d', i+1, j));
-            fB = face_map(sprintf('h_%d_%d', i, j));
-            fT = face_map(sprintf('h_%d_%d', i, j+1));
-    
-            cell_struct(cell_id).faces = [fL, fR, fB, fT];
-            cell_struct(cell_id).face_dirs = [-1, 1, -1, 1];
-    
-            % update each face's connected cells
-            face_struct(fL).cells = [face_struct(fL).cells, cell_id];
-            face_struct(fR).cells = [face_struct(fR).cells, cell_id];
-            face_struct(fB).cells = [face_struct(fB).cells, cell_id];
-            face_struct(fT).cells = [face_struct(fT).cells, cell_id];
 
-            % polygonal cell vertices (counter clock wise)
+            % vertex IDs (counter clockwise)
             v1 = (j-1)*(nx+1) + i; % bottom left
-            v2 = (j-1)*(nx+1) + i + 1; % bottom right
-            v3 = j*(nx+1) + i + 1; % top right
-            v4 = j*(nx+1) + i; % top left
-            cells{cell_id} = [v1, v2, v3, v4];
+            v2 = v1 + 1; % bottom right
+            v3 = v2 + (nx+1); % top right
+            v4 = v1 + (nx+1); % top left
+            vids = [v1, v2, v3, v4];
+            cells{cell_id} = vids;
+
+            % cell center and area from vertices
+            pts = vertices(vids, :);
+            cell_struct(cell_id).center = mean(pts, 1);
+            x = pts(:,1);
+            z = pts(:,2);
+            area = 0.5 * abs(sum(x .* circshift(z,-1)) - sum(z .* circshift(x,-1))); % shoelace formula
+            cell_struct(cell_id).volume = area;
+
+            % add faces (edges of the polygon)
+            face_ids = [];
+            face_dirs = [];
+            for k = 1:4
+                v_start = vids(k);
+                v_end = vids(mod(k, 4) + 1);
+                key = sprintf('%d_%d', min(v_start,v_end), max(v_start,v_end));
+
+                if isKey(face_map, key)
+                    f = face_map(key);
+                    face_struct(f).cells = [face_struct(f).cells, cell_id];
+                    face_ids(end+1) = f;
+                    face_dirs(end+1) = -1;
+                else
+                    face_counter = face_counter + 1;
+                    f = face_counter;
+                    face_map(key) = f;
+
+                    p1 = vertices(v_start,:);
+                    p2 = vertices(v_end,:);
+                    t = p2 - p1;
+                    normal = [-t(2); t(1)] / norm(t); % approximated outward normal
+                    center = 0.5 * (p1 + p2);
+                    length_face = norm(t);
+
+                    face_struct(f).cells = cell_id;
+                    face_struct(f).normal = normal;
+                    face_struct(f).center = center;
+                    face_struct(f).area = length_face;
+
+                    face_ids(end+1) = f;
+                    face_dirs(end+1) = 1;
+                end
+            end
+
+            cell_struct(cell_id).faces = face_ids;
+            cell_struct(cell_id).face_dirs = face_dirs;
+            
         end
     end
-
 end
+
+
+
+
+
+  

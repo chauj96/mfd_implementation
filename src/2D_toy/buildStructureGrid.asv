@@ -1,12 +1,7 @@
-function [cell_struct, face_struct] = buildStructureGrid(nx, nz, Lx, Lz)
+function [cell_struct, face_struct, vertices, cells] = buildStructureGrid(nx, nz, Lx, Lz)
     
     dx = Lx / nx;
     dz = Lz / nz;
-    
-    n_cells = nx * nz;
-    n_faces_x = (nx + 1) * nz;
-    n_faces_z = (nz + 1) * nx;
-    n_faces = n_faces_x + n_faces_z;
 
     % create vertex list
     xv = linspace(0, Lx, nx+1);
@@ -14,12 +9,63 @@ function [cell_struct, face_struct] = buildStructureGrid(nx, nz, Lx, Lz)
     [X, Z] = meshgrid(xv, zv);
     X = X';
     Z = Z'; 
+
+    amp_x = 0.0 * 0.025;        % amplitude of x-perturbation
+    amp_z = 0.0 * 0.025; 
+    % Perturb internal vertices only (excluding boundaries)
+    for i = 2:nx    
+        for j = 2:nz 
+            X(i,j) = X(i,j) + amp_x * sin(4*pi * X(i,j)) * sin(4*pi * Z(i,j));
+            Z(i,j) = Z(i,j) + amp_z * cos(4*pi * X(i,j)) * sin(4*pi * Z(i,j));
+        end
+    end
+
     vertices = [X(:), Z(:)];
     
     % FACE STORAGE
     face_struct = struct('cells', {}, 'normal', {}, 'center', {}, 'area', {});
     face_counter = 0;
     face_map = containers.Map;
+
+    % CELL STORAGE
+    cell_struct = struct('center', {}, 'faces', {}, 'face_dirs', {}, 'volume', {});
+    cells = {};
+    cell_id = 0;
+
+    for j = 1:nz
+        for i = 1:nx
+            cell_id = cell_id + 1;
+
+            % vertex IDs (counter clockwise)
+            v1 = (j-1)*(nx+1) + i; % bottom left
+            v2 = v1 + 1; % bottom right
+            v3 = v2 + (nx+1); % top right
+            v4 = v1 + (nx+1); % top left
+            cells{cell_id} = [v1, v2, v3, v4];
+
+            % cell center and area from vertices
+            pts = vertices(vids, :);
+            cell_struct(cell_id).center = mean(pts, 1);
+            x = pts(:,1);
+            z = pts(:,2);
+            area = 0.5 * abs(sum(x .* circshift(z,-1)) - sum(z .* circshift(x,-1)));
+            cell_struct(cell_id).volume = area;
+
+            % add faces (edges of the polygon)
+            face_ids = [];
+            face_dirs = [];
+            for k = 1:4
+                v_start = vids(k);
+                
+            end
+            
+        end
+    end
+
+
+
+
+
     
     % vertical faces (left-right)
     for j = 1:nz
@@ -54,10 +100,7 @@ function [cell_struct, face_struct] = buildStructureGrid(nx, nz, Lx, Lz)
             face_map(key) = face_counter;
         end
     end
-    
-    % CELL STORAGE
-    cell_struct = struct('center', {}, 'faces', {}, 'face_dirs', {}, 'volume', {});
-    cell_id = 0;
+   
     
     for j = 1:nz
         for i = 1:nx
@@ -83,7 +126,12 @@ function [cell_struct, face_struct] = buildStructureGrid(nx, nz, Lx, Lz)
             face_struct(fB).cells = [face_struct(fB).cells, cell_id];
             face_struct(fT).cells = [face_struct(fT).cells, cell_id];
 
-            % polygonal 
+            % polygonal cell vertices (counter clock wise)
+            v1 = (j-1)*(nx+1) + i; % bottom left
+            v2 = (j-1)*(nx+1) + i + 1; % bottom right
+            v3 = j*(nx+1) + i + 1; % top right
+            v4 = j*(nx+1) + i; % top left
+            cells{cell_id} = [v1, v2, v3, v4];
         end
     end
 
