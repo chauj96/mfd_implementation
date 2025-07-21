@@ -1,7 +1,8 @@
 function [cell_struct, face_struct] = initPhysicalParams(cell_struct, face_struct, Lx, Lz, case_type)
 
     % constants
-    K_vals = 1.0; % permeability
+    K_tensor = [1e-3, 0.0;
+                0.0, 5.0]; % permeability tensor
     phi_vals = 0; % porosity
     rho_vals = 1000; % fluid density [kg/m^3]
     g_val = 0.0; % gravitational acceleration [m/s^2]
@@ -32,7 +33,15 @@ function [cell_struct, face_struct] = initPhysicalParams(cell_struct, face_struc
     
     % assign to each cell
     for c = 1:length(cell_struct)
-        cell_struct(c).K = K_vals;
+        cell_struct(c).K = K_tensor;
+
+%         x = cell_struct(c).center(1);
+%         if x < 0.1
+%             cell_struct(c).K = [0.01, 0.01; 0.01, 0.01];
+%         else
+%             cell_struct(c).K = [10.0, 0.0; 0.0, 10.0];
+%         end
+
         cell_struct(c).phi = phi_vals;
         cell_struct(c).rho = rho_vals;
     end

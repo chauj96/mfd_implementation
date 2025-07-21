@@ -35,6 +35,10 @@ function M = buildMmatrix(cell_struct, face_struct, ip_type, t)
                     d = abs(dot(xF - xC, nf));
                     invT = d / (K * Af);
 
+//                    K = nf' * cell_struct(c).K * nf; % extend to permeability tensor
+//                    d = abs(dot(xF - xC, nf));
+//                    invT = d / (K * Af);
+
                     rows(end+1) = f;
                     cols(end+1) = f;
                     vals(end+1) = invT;

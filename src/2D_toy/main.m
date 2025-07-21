@@ -1,4 +1,4 @@
-clear; clc; close all;
+clear; clc;
 
 addpath('PolyMesher/');
 
@@ -15,7 +15,8 @@ g_c = 0.0 * (1.0e-6);
 % g_c = 0;
 
 if strcmp(case_type, 'structured')
-    [cell_struct, face_struct] = buildStructureGrid(nx, nz, Lx, Lz);
+    [cell_struct, face_struct, vertices, cells] = buildStructureGrid(nx, nz, Lx, Lz);
+
 elseif strcmp(case_type, 'unstructured')
     domain = @MbbDomain; % this domain also sets with Lx = 2, Lz = 2 -> BdBox = [0 2 0 2];
     n_cells = nz*nx; % we can change the number of cells
@@ -66,9 +67,5 @@ m_sol = sol(1:n_faces);
 p_sol = sol(n_faces+1:end);
 
 % Step 6: Plot the pressure field
-if strcmp(case_type, 'structured')
-    plotPressure(cell_struct, p_sol);
-elseif strcmp(case_type, 'unstructured')
-    plotPressurePolygonal(vertices, cells, p_sol);
-end
+plotPressurePolygonal(vertices, cells, p_sol);
 

@@ -1,4 +1,4 @@
-function [cell_struct, face_struct, vertices, cells] = buildStructureGrid(nx, nz, Lx, Lz)
+function [cell_struct, face_struct] = buildStructureGrid(nx, nz, Lx, Lz)
     
     dx = Lx / nx;
     dz = Lz / nz;
@@ -83,12 +83,7 @@ function [cell_struct, face_struct, vertices, cells] = buildStructureGrid(nx, nz
             face_struct(fB).cells = [face_struct(fB).cells, cell_id];
             face_struct(fT).cells = [face_struct(fT).cells, cell_id];
 
-            % polygonal cell vertices (counter clock wise)
-            v1 = (j-1)*(nx+1) + i; % bottom left
-            v2 = (j-1)*(nx+1) + i + 1; % bottom right
-            v3 = j*(nx+1) + i + 1; % top right
-            v4 = j*(nx+1) + i; % top left
-            cells{cell_id} = [v1, v2, v3, v4];
+            % polygonal 
         end
     end
 

@@ -1,3 +1,5 @@
+% No longer use this plot function (move to plotPressurePolygonal.m)
+
 function plotPressure(cell_struct, p_sol)
     % Extract grid info
     n_cells = length(cell_struct);
