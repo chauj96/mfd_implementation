@@ -8,8 +8,8 @@ case_type = 'structured';
 dt = 1;
 nx = 50;
 nz = 50;
-Lx = 2.0;
-Lz = 2.0;
+Lx = 1.0;
+Lz = 1.0;
 rho = 1000;
 g_c = 0.0 * (1.0e-6);
 % g_c = 0;
@@ -66,6 +66,11 @@ n_faces = length(face_struct);
 m_sol = sol(1:n_faces);
 p_sol = sol(n_faces+1:end);
 
+m_flux = inv(M) * (B' * p_sol - rhs_Dirichlet) 
+
 % Step 6: Plot the pressure field
 plotPressurePolygonal(vertices, cells, p_sol);
+
+% Step 7: Plot stream lines from flux
+plotStreamlinesFromFlux(cell_struct, face_struct, m_flux);
 

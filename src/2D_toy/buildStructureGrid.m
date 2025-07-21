@@ -14,6 +14,19 @@ function [cell_struct, face_struct, vertices, cells] = buildStructureGrid(nx, nz
     [X, Z] = meshgrid(xv, zv);
     X = X';
     Z = Z'; 
+
+    amp_x = 0.0 * 0.025;        % amplitude of x-perturbation
+    amp_z = 0.0 * 0.025; 
+    % Perturb internal vertices only (excluding boundaries)
+    for i = 2:nx    
+        for j = 2:nz 
+            X(i,j) = X(i,j) + amp_x * sin(4*pi * X(i,j)) * sin(4*pi * Z(i,j));
+            Z(i,j) = Z(i,j) + amp_z * cos(4*pi * X(i,j)) * sin(4*pi * Z(i,j));
+        end
+    end
+    
+    vertices = [X(:), Z(:)];
+
     vertices = [X(:), Z(:)];
     
     % FACE STORAGE

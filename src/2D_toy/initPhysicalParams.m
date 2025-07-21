@@ -1,8 +1,8 @@
 function [cell_struct, face_struct] = initPhysicalParams(cell_struct, face_struct, Lx, Lz, case_type)
 
     % constants
-    K_base = [1e-3, 0.0;
-                0.0, 5.0]; % permeability tensor
+    K_base = [1.0, 0.0;
+                0.0, 1.0]; % permeability tensor
     theta = 0;                     % angle in degrees
     theta_rad = deg2rad(theta);     % convert to radians
     
@@ -14,7 +14,7 @@ function [cell_struct, face_struct] = initPhysicalParams(cell_struct, face_struc
     rho_vals = 1000; % fluid density [kg/m^3]
     g_val = 0.0; % gravitational acceleration [m/s^2]
     gravity_dir = [0; -1];
-    tol = 1e-8;
+    tol = 1e-5;
 
     % fetch face centers
     if strcmp(case_type, 'structured')
