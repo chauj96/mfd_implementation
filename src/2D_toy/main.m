@@ -6,8 +6,8 @@ addpath('PolyMesher/');
 case_type = 'unstructured';
 
 dt = 1;
-nx = 50;
-nz = 50;
+nx = 100;
+nz = 100;
 Lx = 2.0;
 Lz = 2.0;
 rho = 1000;
@@ -27,10 +27,10 @@ end
 
 % Step 2: Build matrix M, B, T / Assemble the matrices
 % TPFA case
-%M = buildMmatrix(cell_struct, face_struct, 'tpfa');
+M = buildMmatrix(cell_struct, face_struct, 'tpfa');
 
 % General parametric with t = 6 (quasi-RT)
-M = buildMmatrix(cell_struct, face_struct, 'general_parametric', 6);
+%M = buildMmatrix(cell_struct, face_struct, 'general_parametric', 6);
 
 B = buildBmatrix(cell_struct, face_struct);
 T = buildTmatrix(cell_struct);
