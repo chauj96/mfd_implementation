@@ -4,7 +4,7 @@
 %      Matlab," Struct Multidisc Optim, DOI 10.1007/s00158-011-0706-z     %
 %-------------------------------------------------------------------------%
 function [x] = MbbDomain(Demand,Arg)
-  BdBox = [0 2 0 2];
+  BdBox = [0 1 0 1];
   switch(Demand)
     case('Dist');  x = DistFnc(Arg,BdBox);
     case('BC');    x = BndryCnds(Arg{:},BdBox);

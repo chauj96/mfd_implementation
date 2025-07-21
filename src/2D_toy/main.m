@@ -1,4 +1,4 @@
-clear; clc; close all;
+clear all; clc; close all;
 
 addpath('PolyMesher/');
 
@@ -6,8 +6,8 @@ addpath('PolyMesher/');
 case_type = 'structured';
 
 dt = 1;
-nx = 50;
-nz = 50;
+nx = 51;
+nz = 51;
 Lx = 1.0;
 Lz = 1.0;
 rho = 1000;
@@ -18,7 +18,7 @@ if strcmp(case_type, 'structured')
     [cell_struct, face_struct, vertices, cells] = buildStructureGrid(nx, nz, Lx, Lz);
 
 elseif strcmp(case_type, 'unstructured')
-    domain = @MbbDomain; % this domain also sets with Lx = 2, Lz = 2 -> BdBox = [0 2 0 2];
+    domain = @MbbDomain; % this domain also sets with Lx = 1, Lz = 1 -> BdBox = [0 1 0 1];
     n_cells = nz*nx; % we can change the number of cells
     [cell_struct, face_struct, vertices, cells] = buildPolyGrid(domain, n_cells);
 end
@@ -28,10 +28,10 @@ end
 
 % Step 2: Build matrix M, B, T / Assemble the matrices
 % TPFA case
-M = buildMmatrix(cell_struct, face_struct, 'tpfa');
+%M = buildMmatrix(cell_struct, face_struct, 'tpfa');
 
-% General parametric with t = 6 (quasi-RT)
-%M = buildMmatrix(cell_struct, face_struct, 'general_parametric', 6);
+% General parametric
+M = buildMmatrix(cell_struct, face_struct, 'general_parametric');
 
 B = buildBmatrix(cell_struct, face_struct);
 T = buildTmatrix(cell_struct);
@@ -66,7 +66,7 @@ n_faces = length(face_struct);
 m_sol = sol(1:n_faces);
 p_sol = sol(n_faces+1:end);
 
-m_flux = inv(M) * (B' * p_sol - rhs_Dirichlet); 
+m_flux = M \ (-B' * p_sol - rhs_Dirichlet);
 
 % Step 6: Plot the pressure field
 plotPressurePolygonal(vertices, cells, p_sol);

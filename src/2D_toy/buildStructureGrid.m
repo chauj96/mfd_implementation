@@ -1,24 +1,26 @@
 function [cell_struct, face_struct, vertices, cells] = buildStructureGrid(nx, nz, Lx, Lz)
-   
+ 
     % create vertex list
     xv = linspace(0, Lx, nx+1);
     zv = linspace(0, Lz, nz+1);
     [X, Z] = meshgrid(xv, zv);
     X = X';
-    Z = Z'; 
+    Z = Z';
 
-    amp_x = 0.025;        % amplitude of x-perturbation
-    amp_z = 0.025; 
-    % Perturb internal vertices only (excluding boundaries)
-    for i = 2:nx    
-        for j = 2:nz 
-            X(i,j) = X(i,j) + amp_x * sin(4*pi * X(i,j)) * sin(4*pi * Z(i,j));
-            Z(i,j) = Z(i,j) + amp_z * cos(4*pi * X(i,j)) * sin(4*pi * Z(i,j));
+    lambda_x = 5;
+    lambda_z = 5;
+    amp_x = 0.0 * 0.00625;
+    amp_z = 0.0 * 0.00625;
+
+    for i = 2:nx
+        for j = 2:nz
+            X(i,j) = X(i,j) + amp_x * sin(lambda_x*pi * X(i,j)) * sin(lambda_z*pi * Z(i,j));
+            Z(i,j) = Z(i,j) + amp_z * cos(lambda_x*pi * X(i,j)) * sin(lambda_z*pi * Z(i,j));
         end
     end
 
     vertices = [X(:), Z(:)];
-    
+
     % FACE STORAGE
     face_struct = struct('cells', {}, 'normal', {}, 'center', {}, 'area', {});
     face_counter = 0;
@@ -32,7 +34,6 @@ function [cell_struct, face_struct, vertices, cells] = buildStructureGrid(nx, nz
     for j = 1:nz
         for i = 1:nx
             cell_id = cell_id + 1;
-
             % vertex IDs (counter clockwise)
             v1 = (j-1)*(nx+1) + i; % bottom left
             v2 = v1 + 1; % bottom right
@@ -52,11 +53,12 @@ function [cell_struct, face_struct, vertices, cells] = buildStructureGrid(nx, nz
             % add faces (edges of the polygon)
             face_ids = [];
             face_dirs = [];
-            for k = 1:4
-                v_start = vids(k);
-                v_end = vids(mod(k, 4) + 1);
-                key = sprintf('%d_%d', min(v_start,v_end), max(v_start,v_end));
 
+            % Define cell edges (v1-v2, v2-v3, v3-v4, v4-v1)
+            edge_list = {[v1, v2], [v2, v3], [v3, v4], [v4, v1]};
+            for k = 1:4
+                edge = sort(edge_list{k});
+                key = sprintf('%d_%d', edge(1), edge(2));
                 if isKey(face_map, key)
                     f = face_map(key);
                     face_struct(f).cells = [face_struct(f).cells, cell_id];
@@ -67,10 +69,10 @@ function [cell_struct, face_struct, vertices, cells] = buildStructureGrid(nx, nz
                     f = face_counter;
                     face_map(key) = f;
 
-                    p1 = vertices(v_start,:);
-                    p2 = vertices(v_end,:);
+                    p1 = vertices(edge(1),:);
+                    p2 = vertices(edge(2),:);
                     t = p2 - p1;
-                    normal = [-t(2); t(1)] / norm(t); % approximated outward normal
+                    normal = [-t(2); t(1)] / norm(t);
                     center = 0.5 * (p1 + p2);
                     length_face = norm(t);
 
@@ -86,13 +88,6 @@ function [cell_struct, face_struct, vertices, cells] = buildStructureGrid(nx, nz
 
             cell_struct(cell_id).faces = face_ids;
             cell_struct(cell_id).face_dirs = face_dirs;
-            
         end
     end
 end
-
-
-
-
-
-  

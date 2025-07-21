@@ -27,7 +27,7 @@ function plotPressurePolygonal(vertices, cells, p_sol)
         linspace(y_min, y_max, 300));
     
     % Interpolate the pressure field to the grid
-    F = scatteredInterpolant(cell_centers(:,1), cell_centers(:,2), p_sol(:), 'natural', 'none');
+    F = scatteredInterpolant(cell_centers(:,1), cell_centers(:,2), p_sol(:), 'linear', 'none');
     P_interp = F(X, Y);
 
     % Plot colored and thick contour lines

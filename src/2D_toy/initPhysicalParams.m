@@ -14,7 +14,7 @@ function [cell_struct, face_struct] = initPhysicalParams(cell_struct, face_struc
     rho_vals = 1000; % fluid density [kg/m^3]
     g_val = 0.0; % gravitational acceleration [m/s^2]
     gravity_dir = [0; -1];
-    tol = 1e-5;
+    tol = 1e-6;
 
     % fetch face centers
     if strcmp(case_type, 'structured')

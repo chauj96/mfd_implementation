@@ -1,4 +1,4 @@
-function M = buildMmatrix(cell_struct, face_struct, ip_type, t)
+function M = buildMmatrix(cell_struct, face_struct, ip_type)
     % Build the M matrix (inner product for velocity DOFs)
     %
     % ip_type: 'tpfa' or 'general_parametric'
@@ -8,7 +8,6 @@ function M = buildMmatrix(cell_struct, face_struct, ip_type, t)
         cell_struct
         face_struct
         ip_type (1,:) char {mustBeMember(ip_type, {'tpfa', 'general_parametric'})}
-        t (1,1) double {mustBeNonnegative} = 6
     end
 
     rows = [];
@@ -18,7 +17,6 @@ function M = buildMmatrix(cell_struct, face_struct, ip_type, t)
     n_cells = length(cell_struct);
     n_faces = length(face_struct);
 
-    % Automatically detect dimension (2D or 3D)
     dim = length(face_struct(1).center);
 
     switch ip_type
@@ -54,27 +52,33 @@ function M = buildMmatrix(cell_struct, face_struct, ip_type, t)
                 C = zeros(cell_nf, dim); % face direction vectors
                 N = zeros(cell_nf, dim); % face normals
                 a = zeros(cell_nf, 1);   % face areas
-
                 for j = 1:cell_nf
                     f = face_ids(j);
                     Cf = face_struct(f).center(:);
                     Nf = face_struct(f).normal(:);
-                    Af = face_struct(f).area;
-                    
+                    Af = face_struct(f).area;  
 
-                    df = Cf - Cc;
-
+                    d = Cf - Cc; 
+                    df = d;
+                    signf = sign( df' * Nf );
                     C(j,:) = df';
-                    N(j,:) = Af * sign(dot(df, Nf)) * Nf';
+                    N(j,:) = Af * signf * (Nf');
                     a(j)   = Af;
                 end
+                
+                % W = N * K * N';
+                % Q = orth(N);
+                % P = eye(cell_nf) - Q * Q';
+                % di = diag(1 ./ diag(W));
+                % invT = (C * (K \ C'))./v + (v / cell_nf) * (P * di * P);                
 
-                W = N * K * N';      % (nf x nf)
-                Q = orth(N);             % (nf x rank(N))
-                P = eye(cell_nf) - Q * Q';     % (nf x nf)
-                di = diag(1 ./ diag(W));  % (nf x nf)             
-                invT = (C * (K \ C'))./v + (v / t)*(P * di * P);
-
+                % simple
+                t = 6 * sum(diag(K)) / size(K,2);
+                Q  = orth(bsxfun(@rdivide, N, a));
+                U  = eye(length(a)) - Q*Q';
+                di = diag(1 ./ a);
+                invT  = (C * (K \ C'))./v + (v / t)*(di * U * di);
+                
                 % TPFA version
                 td = sum(C .* (N*K), 2) ./ sum(C.*C, 2);
                 %invT = diag(1 ./ abs(td));
