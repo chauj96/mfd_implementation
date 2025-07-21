@@ -19,13 +19,13 @@ function [cell_struct, face_struct, vertices, cells] = buildPolyGrid(domain, n_c
             v2 = verts(mod(i, n_verts) + 1); % wrap around
     
             % make unique not only the key but the normal computation 
-            if v2 < v1
-                tmp = v1;
-                v1 = v2;
-                v2 = tmp;
-            end
-            key1 = sprintf('%d_%d', v1, v2);
-            %key1 = sprintf('%d_%d', min(v1, v2), max(v1, v2)); % unordered key (edge is undirected)
+            % if v2 < v1
+            %     tmp = v1;
+            %     v1 = v2;
+            %     v2 = tmp;
+            % end
+            % key1 = sprintf('%d_%d', v1, v2);
+            key1 = sprintf('%d_%d', min(v1, v2), max(v1, v2)); % unordered key (edge is undirected)
             if isKey(face_map, key1)
                 f_id = face_map(key1);
                 face_struct(f_id).cells(end+1) = c;

@@ -6,8 +6,8 @@ addpath('PolyMesher/');
 case_type = 'structured';
 
 dt = 1;
-nx = 51;
-nz = 51;
+nx = 21;
+nz = 21;
 Lx = 1.0;
 Lz = 1.0;
 rho = 1000;
@@ -31,7 +31,9 @@ end
 %M = buildMmatrix(cell_struct, face_struct, 'tpfa');
 
 % General parametric
-M = buildMmatrix(cell_struct, face_struct, 'general_parametric');
+%M = buildMmatrixParametric(cell_struct, face_struct, 'tpfa');
+%M = buildMmatrixParametric(cell_struct, face_struct, 'simple');
+M = buildMmatrixParametric(cell_struct, face_struct, 'general_parametric');
 
 B = buildBmatrix(cell_struct, face_struct);
 T = buildTmatrix(cell_struct);
@@ -72,14 +74,14 @@ m_flux = M \ (-B' * p_sol - rhs_Dirichlet);
 plotPressurePolygonal(vertices, cells, p_sol);
 
 % Step 7: Plot stream lines from flux
-plotStreamlinesFromFlux(cell_struct, face_struct, m_flux);
+%plotStreamlinesFromFlux(cell_struct, face_struct, m_flux);
 
 % (Option) Check perturbation / mesh structure
-figure;
-for c = 1:length(cells)
-    poly = vertices(cells{c}, :);
-    patch(poly(:,1), poly(:,2), 'w', 'EdgeColor', 'k');
-end
-axis equal;
-title('Check perturbation and mesh structure');
+% figure;
+% for c = 1:length(cells)
+%     poly = vertices(cells{c}, :);
+%     patch(poly(:,1), poly(:,2), 'w', 'EdgeColor', 'k');
+% end
+% axis equal;
+% title('Check perturbation and mesh structure');
 

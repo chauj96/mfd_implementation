@@ -1,4 +1,4 @@
-function plotPressurePolygonal(vertices, cells, p_sol)
+function plotPressurePolygonal(vertices, cells, p_sol, title_suffix)
     n_cells = length(cells);
 
     figure;
@@ -41,7 +41,7 @@ function plotPressurePolygonal(vertices, cells, p_sol)
     colormap(parula);
     colorbar;
 
-    title('Pressure Field with Contours (Polygonal Mesh)');
+    title(['Pressure Field: ', title_suffix]);
     xlabel('x');
     ylabel('z');
 end

@@ -1,0 +1,86 @@
+function M = buildMmatrixParametric(cell_struct, face_struct, ip_type)
+    % Build the M matrix (inner product for velocity DOFs)
+    %
+    % ip_type: 'tpfa', 'general_parametric', or 'simple'
+
+    arguments
+        cell_struct
+        face_struct
+        ip_type (1,:) char {mustBeMember(ip_type, {'tpfa', 'general_parametric', 'simple'})}
+    end
+
+    rows = [];
+    cols = [];
+    vals = [];
+
+    n_cells = length(cell_struct);
+    n_faces = length(face_struct);
+
+    dim = length(face_struct(1).center);
+
+    for c = 1:n_cells
+        face_ids = cell_struct(c).faces;
+        cell_nf = length(face_ids);
+        Cc = cell_struct(c).center(:);
+        K = cell_struct(c).K;
+        v = cell_struct(c).volume;
+
+        % Local geometry arrays
+        C = zeros(cell_nf, dim); % face direction vectors
+        N = zeros(cell_nf, dim); % face normals
+        a = zeros(cell_nf, 1);   % face areas
+
+        for j = 1:cell_nf
+            f = face_ids(j);
+            Cf = face_struct(f).center(:);
+            Nf = face_struct(f).normal(:);
+            Af = face_struct(f).area;
+
+            d = Cf - Cc; 
+            df = d;
+            signf = sign(df' * Nf);
+            C(j,:) = df';
+            N(j,:) = Af * signf * (Nf');
+            a(j)   = Af;
+        end
+
+        % Compute inverse inner product matrix (invT) depending on ip_type
+        switch ip_type
+            case 'general_parametric'
+                W = N * K * N';
+                Q = orth(bsxfun(@rdivide, N, a));
+                P = eye(cell_nf) - Q * Q';
+                di = diag(1 ./ diag(W));
+                invT = (C * (K \ C'))./v + (v / cell_nf) * (P * di * P);
+
+            case 'simple'
+                t = 6 * sum(diag(K))/dim;
+                Q = orth(bsxfun(@rdivide, N, a));
+                U = eye(cell_nf) - Q * Q';
+                di = diag(1 ./ a);
+                invT = (C * (K \ C'))./v + (v / t)*(di * U * di);
+
+                % Qs = orth(bsxfun(@times, C, a));
+                % Us = eye(cell_nf) - Qs * Qs';
+                % di = diag(a);
+                % T = (N * K * N')./v + (t/v)*(di * Us * di);
+                % norm(inv(T) - invT)
+
+            case 'tpfa'
+                td = sum(C .* (N * K), 2) ./ sum(C .* C, 2);
+                invT = diag(1 ./ abs(td));
+        end
+
+        for i = 1:cell_nf
+            fi = face_ids(i);
+            for j = 1:cell_nf
+                fj = face_ids(j);
+                rows(end+1) = fi;
+                cols(end+1) = fj;
+                vals(end+1) = invT(i,j);
+            end
+        end
+    end
+
+    M = sparse(rows, cols, vals, n_faces, n_faces);
+end

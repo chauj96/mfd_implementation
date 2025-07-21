@@ -66,20 +66,21 @@ function M = buildMmatrix(cell_struct, face_struct, ip_type)
                     a(j)   = Af;
                 end
                 
-                % W = N * K * N';
-                % Q = orth(N);
-                % P = eye(cell_nf) - Q * Q';
-                % di = diag(1 ./ diag(W));
-                % invT = (C * (K \ C'))./v + (v / cell_nf) * (P * di * P);                
+                % general_parametric
+                W = N * K * N';
+                Q = orth(bsxfun(@rdivide, N, a));
+                P = eye(cell_nf) - Q * Q';
+                di = diag(1 ./ diag(W));
+                invT = (C * (K \ C'))./v + (v / cell_nf) * (P * di * P);                
 
                 % simple
-                t = 6 * sum(diag(K)) / size(K,2);
-                Q  = orth(bsxfun(@rdivide, N, a));
-                U  = eye(length(a)) - Q*Q';
-                di = diag(1 ./ a);
-                invT  = (C * (K \ C'))./v + (v / t)*(di * U * di);
+                % t = 6 * sum(diag(K)) / size(K,2);
+                % Q  = orth(bsxfun(@rdivide, N, a));
+                % U  = eye(length(a)) - Q*Q';
+                % di = diag(1 ./ a);
+                %invT  = (C * (K \ C'))./v + (v / t)*(di * U * di);
                 
-                % TPFA version
+                % tpfa
                 td = sum(C .* (N*K), 2) ./ sum(C.*C, 2);
                 %invT = diag(1 ./ abs(td));
 
