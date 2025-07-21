@@ -13,7 +13,7 @@ function plotPressurePolygonal(vertices, cells, p_sol)
     
     axis equal tight;
     colorbar;
-    title('Pressure Field (Polygonal Mesh)');
+    title('Pressure Field');
     xlabel('x');
     ylabel('z');
 end
