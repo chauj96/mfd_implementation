@@ -31,13 +31,9 @@ function M = buildMmatrix(cell_struct, face_struct, ip_type, t)
                     xF = face_struct(f).center(:);
                     nf = face_struct(f).normal(:); 
                     Af = face_struct(f).area;  
-                    K = cell_struct(c).K;
+                    K = nf' * cell_struct(c).K * nf; % extend to permeability tensor
                     d = abs(dot(xF - xC, nf));
                     invT = d / (K * Af);
-
-//                    K = nf' * cell_struct(c).K * nf; % extend to permeability tensor
-//                    d = abs(dot(xF - xC, nf));
-//                    invT = d / (K * Af);
 
                     rows(end+1) = f;
                     cols(end+1) = f;
@@ -73,16 +69,15 @@ function M = buildMmatrix(cell_struct, face_struct, ip_type, t)
                     a(j)   = Af;
                 end
 
-                kappa = N * K * N';      % (nf x nf)
+                W = N * K * N';      % (nf x nf)
                 Q = orth(N);             % (nf x rank(N))
                 P = eye(cell_nf) - Q * Q';     % (nf x nf)
-                di = diag(1 ./ diag(kappa));  % (nf x nf)
-
-                invT = (C * inv(K) * C') ./ v + (v / t) .* (P * di * P);
+                di = diag(1 ./ diag(W));  % (nf x nf)             
+                invT = (C * (K \ C'))./v + (v / t)*(P * di * P);
 
                 % TPFA version
-                % td = sum(C .* (N*K), 2) ./ sum(C.*C, 2);
-                % invT = diag(1 ./ abs(td));
+                td = sum(C .* (N*K), 2) ./ sum(C.*C, 2);
+                %invT = diag(1 ./ abs(td));
 
                 for i = 1:cell_nf
                     fi = face_ids(i);

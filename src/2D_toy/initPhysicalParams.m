@@ -1,8 +1,15 @@
 function [cell_struct, face_struct] = initPhysicalParams(cell_struct, face_struct, Lx, Lz, case_type)
 
     % constants
-    K_tensor = [1e-3, 0.0;
+    K_base = [1e-3, 0.0;
                 0.0, 5.0]; % permeability tensor
+    theta = 0;                     % angle in degrees
+    theta_rad = deg2rad(theta);     % convert to radians
+    
+    R = [cos(theta_rad), -sin(theta_rad); 
+         sin(theta_rad),  cos(theta_rad)];  % rotation matrix
+    
+    K_tensor = R * K_base * R';
     phi_vals = 0; % porosity
     rho_vals = 1000; % fluid density [kg/m^3]
     g_val = 0.0; % gravitational acceleration [m/s^2]
@@ -23,12 +30,15 @@ function [cell_struct, face_struct] = initPhysicalParams(cell_struct, face_struc
 
     bottom_idx = find(abs(f_centers(:,2) - 0.0) < tol);
     top_idx = find(abs(f_centers(:,2) - Lz) < tol);
-    BC_Dirichlet_map = containers.Map([top_idx; bottom_idx], [repmat(4, 1, length(top_idx)),repmat(2, 1, length(bottom_idx))]);
+    west_idx = find(abs(f_centers(:,1) - 0.0) < tol);
+    east_idx = find(abs(f_centers(:,1) - Lx) < tol);
+
+
+
+    BC_Dirichlet_map = containers.Map([west_idx; east_idx], [repmat(1, 1, length(west_idx)),repmat(0, 1, length(east_idx))]);
  %   BC_Dirichlet_map = containers.Map([top_idx], [repmat(4, 1, length(top_idx))]);
 
-    east_idx = find(abs(f_centers(:,1) - 0.0) < tol);
-    west_idx = find(abs(f_centers(:,1) - Lx) < tol);
-    BC_Neumann_map = containers.Map([east_idx; west_idx], [repmat(0.0, 1, length(east_idx)),repmat(0.0, 1, length(west_idx))]);
+    BC_Neumann_map = containers.Map([top_idx; bottom_idx], [repmat(0.0, 1, length(top_idx)),repmat(0.0, 1, length(bottom_idx))]);
 %    BC_Neumann_map = containers.Map([east_idx; west_idx; bottom_idx], [repmat(0.0, 1, length(east_idx)),repmat(0.0, 1, length(west_idx)),repmat(0.0, 1, length(bottom_idx))]);
     
     % assign to each cell

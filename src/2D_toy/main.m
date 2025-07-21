@@ -3,11 +3,11 @@ clear; clc;
 addpath('PolyMesher/');
 
 % case options: 'structured' or 'unstructured'
-case_type = 'unstructured';
+case_type = 'structured';
 
 dt = 1;
-nx = 100;
-nz = 100;
+nx = 50;
+nz = 50;
 Lx = 2.0;
 Lz = 2.0;
 rho = 1000;
