@@ -9,7 +9,7 @@ function plotPressurePolygonal(vertices, cells, p_sol)
     for c = 1:n_cells
         vert_ids = cells{c};
         poly = vertices(vert_ids, :);
-        fill(poly(:,1), poly(:,2), p_sol(c), 'EdgeColor', 'k');
+        fill(poly(:,1), poly(:,2), p_sol(c), 'EdgeColor', [0.7, 0.7, 0.7]);
         cell_centers(c,:) = mean(poly, 1); % Store cell centroid
     end
     
@@ -32,9 +32,10 @@ function plotPressurePolygonal(vertices, cells, p_sol)
 
     % Plot colored and thick contour lines
     hold on;
-    [C, h] = contour(X, Y, P_interp, 10, 'LineColor', [1.0, 0.0, 0.0]);
+    [C, h] = contour(X, Y, P_interp, 13, 'LineColor', [1.0, 0.0, 0.0]);
     h.LineWidth = 3;                     % Thicker lines
-    clabel(C, h, 'FontSize', 8);         % Optional: add labels to contours
+    
+    clabel(C, h, 'FontSize', 12, 'Color', 'k');
 
     % Use the same colormap for contour and fill
     colormap(parula);
