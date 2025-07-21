@@ -32,7 +32,7 @@ function plotPressurePolygonal(vertices, cells, p_sol)
 
     % Plot colored and thick contour lines
     hold on;
-    [C, h] = contour(X, Y, P_interp, 10); % 15 levels
+    [C, h] = contour(X, Y, P_interp, 10, 'LineColor', [1.0, 0.0, 0.0]);
     h.LineWidth = 3;                     % Thicker lines
     clabel(C, h, 'FontSize', 8);         % Optional: add labels to contours
 
