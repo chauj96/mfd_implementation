@@ -9,7 +9,7 @@ function B = buildBmatrix(cell_struct, face_struct)
     
     for k = 1:n_cells
         face_ids = cell_struct(k).faces;
-        signs = cell_struct(k).face_dirs;
+        signs = cell_struct(k).faces_orientation;
     
         for j = 1:length(face_ids)
             f = face_ids(j);

@@ -6,8 +6,8 @@ addpath('PolyMesher/');
 case_type = 'structured';
 
 dt = 1;
-nx = 101;
-nz = 101;
+nx = 21;
+nz = 21;
 Lx = 1.0;
 Lz = 1.0;
 rho = 1000;
@@ -40,7 +40,7 @@ rhs_Dirichlet = dirichletBoundary(cell_struct, face_struct);
 p_solutions = struct();
 
 % List of inner product types
-ip_types = {'simple'};
+ip_types = {'tpfa'};
 n_faces = length(face_struct);
 
 solve_full_LS = true;
@@ -58,7 +58,20 @@ for i = 1:length(ip_types)
 
     % Solve linear system
     if solve_full_LS
+
        sol = A \ -rhs;
+       m_sol = sol(1:n_faces);
+       p_sol = sol(n_faces+1:end);
+       
+       [m_faces, p_cells] = projectExactSolution(cell_struct, face_struct);
+
+       M_star = A(1:n_faces, 1:n_faces);
+       B_star = A(1:n_faces, n_faces+1:end);
+       m_flux = -M_star \ (B_star * p_cells + rhs_Dirichlet);
+       diff_flux = (m_faces - m_sol)/norm(m_faces);
+       diff_p = p_cells - p_sol;
+       darcy_residual = M_star * m_faces + (B_star * p_cells + rhs_Dirichlet);
+       aka = 0;
     else
         secondary_idx = 1:n_faces;
         primary_idx = n_faces+1:length(rhs_partial);

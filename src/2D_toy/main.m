@@ -6,8 +6,8 @@ addpath('PolyMesher/');
 case_type = 'structured';
 
 dt = 1;
-nx = 21;
-nz = 21;
+nx = 51;
+nz = 51;
 Lx = 1.0;
 Lz = 1.0;
 rho = 1000;

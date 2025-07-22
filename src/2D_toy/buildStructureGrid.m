@@ -9,8 +9,8 @@ function [cell_struct, face_struct, vertices, cells] = buildStructureGrid(nx, nz
 
     lambda_x = 4;
     lambda_z = 4;
-    amp_x = 0.05;
-    amp_z = 0.05;
+    amp_x = 0.0*0.05;
+    amp_z = 0.0*0.05;
 
     for i = 2:nx
         for j = 2:nz
@@ -52,10 +52,10 @@ function [cell_struct, face_struct, vertices, cells] = buildStructureGrid(nx, nz
 
             % add faces (edges of the polygon)
             face_ids = [];
-            face_dirs = [];
 
             % Define cell edges (v1-v2, v2-v3, v3-v4, v4-v1)
             edge_list = {[v1, v2], [v2, v3], [v3, v4], [v4, v1]};
+            faces_orientation = cellfun(@(e) sign(e(2) - e(1)), edge_list);
             for k = 1:4
                 edge = sort(edge_list{k});
                 key = sprintf('%d_%d', edge(1), edge(2));
@@ -63,7 +63,6 @@ function [cell_struct, face_struct, vertices, cells] = buildStructureGrid(nx, nz
                     f = face_map(key);
                     face_struct(f).cells = [face_struct(f).cells, cell_id];
                     face_ids(end+1) = f;
-                    face_dirs(end+1) = -1;
                 else
                     face_counter = face_counter + 1;
                     f = face_counter;
@@ -72,7 +71,7 @@ function [cell_struct, face_struct, vertices, cells] = buildStructureGrid(nx, nz
                     p1 = vertices(edge(1),:);
                     p2 = vertices(edge(2),:);
                     t = p2 - p1;
-                    normal = [-t(2); t(1)] / norm(t);
+                    normal = [t(2); -t(1)] / norm(t);
                     center = 0.5 * (p1 + p2);
                     length_face = norm(t);
 
@@ -80,14 +79,12 @@ function [cell_struct, face_struct, vertices, cells] = buildStructureGrid(nx, nz
                     face_struct(f).normal = normal;
                     face_struct(f).center = center;
                     face_struct(f).area = length_face;
-
                     face_ids(end+1) = f;
-                    face_dirs(end+1) = 1;
                 end
             end
 
             cell_struct(cell_id).faces = face_ids;
-            cell_struct(cell_id).face_dirs = face_dirs;
+            cell_struct(cell_id).faces_orientation = faces_orientation;
         end
     end
 end

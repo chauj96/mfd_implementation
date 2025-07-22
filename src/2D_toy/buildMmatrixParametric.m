@@ -24,14 +24,15 @@ function M = buildMmatrixParametric(cell_struct, face_struct, ip_type)
         Cc = cell_struct(c).center(:);
         K = cell_struct(c).K;
         v = cell_struct(c).volume;
+        signs = cell_struct(c).faces_orientation;
 
         % Local geometry arrays
         C = zeros(cell_nf, dim); % face direction vectors
         N = zeros(cell_nf, dim); % face normals
         a = zeros(cell_nf, 1);   % face areas
 
-        for j = 1:cell_nf
-            f = face_ids(j);
+        for idx = 1:cell_nf
+            f = face_ids(idx);
             Cf = face_struct(f).center(:);
             Nf = face_struct(f).normal(:);
             Af = face_struct(f).area;
@@ -39,27 +40,36 @@ function M = buildMmatrixParametric(cell_struct, face_struct, ip_type)
             d = Cf - Cc; 
             df = d;
             signf = sign(df' * Nf);
-            C(j,:) = df';
-            N(j,:) = Af * signf * (Nf');
-            a(j)   = Af;
+            C(idx,:) = df';
+            N(idx,:) = Af * signf * (Nf');
+            a(idx)   = Af;
         end
 
         % Compute inverse inner product matrix (invT) depending on ip_type
         switch ip_type
             case 'general_parametric'
                 W = N * K * N';
-                Q = orth(bsxfun(@rdivide, N, a));
+                Q = orth(N);
                 P = eye(cell_nf) - Q * Q';
                 di = diag(1 ./ diag(W));
-                invT = (C * (K \ C'))./v + (v / cell_nf) * (P * di * P);
+                invT_reg = (v / 4) * (P * di * P);
+                invT = (C * (K \ C'))./v + invT_reg;
+
+                % test regularization term
+                Cr = norm(invT_reg * N);
+                assert(Cr < 1.0e-12);
 
             case 'simple'
                 t = 6 * sum(diag(K))/dim;
                 Q = orth(bsxfun(@rdivide, N, a));
                 U = eye(cell_nf) - Q * Q';
                 di = diag(1 ./ a);
-                invT = (C * (K \ C'))./v + (v / t)*(di * U * di);
-                %aka = 0;
+                invT_reg = (v / t)*(di * U * di);
+                invT = (C * (K \ C'))./v + invT_reg;
+
+                % test regularization term
+                Cr = norm(invT_reg * N);
+                assert(Cr < 1.0e-12);
                 
                 % Qs = orth(bsxfun(@times, C, a));
                 % Us = eye(cell_nf) - Qs * Qs';
@@ -73,6 +83,16 @@ function M = buildMmatrixParametric(cell_struct, face_struct, ip_type)
                 invT = diag(1 ./ abs(td));
         end
 
+        % test consistency conditions
+        Cm = norm(invT * N * K - C);
+        assert(Cm < 1.0e-12);
+
+        % test geometrical property
+        vol_res = norm(v*eye(dim) - C' * N);
+        assert(vol_res < 1.0e-12);
+
+        % invT
+        % face_ids
         for i = 1:cell_nf
             fi = face_ids(i);
             for j = 1:cell_nf
@@ -86,6 +106,7 @@ function M = buildMmatrixParametric(cell_struct, face_struct, ip_type)
 
     M = sparse(rows, cols, vals, n_faces, n_faces);
 
+ % full(M)
 % imagesc(M);
 % colorbar;
 % title('M Plot');
