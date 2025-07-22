@@ -6,8 +6,8 @@ addpath('PolyMesher/');
 case_type = 'structured';
 
 dt = 1;
-nx = 21;
-nz = 21;
+nx = 101;
+nz = 101;
 Lx = 1.0;
 Lz = 1.0;
 rho = 1000;
@@ -40,10 +40,10 @@ rhs_Dirichlet = dirichletBoundary(cell_struct, face_struct);
 p_solutions = struct();
 
 % List of inner product types
-ip_types = {'tpfa','simple'};
+ip_types = {'simple'};
 n_faces = length(face_struct);
 
-solve_full_LS = false
+solve_full_LS = true;
 for i = 1:length(ip_types)
     ip_type = ip_types{i};
     
@@ -85,7 +85,6 @@ end
 
 %plotPressurePolygonal(vertices, cells, p_solutions.(ip_types{1}), ip_types{1})
 
-figure;
 for i = 1:length(ip_types)
     plotPressurePolygonal(vertices, cells, p_solutions.(ip_types{i}),ip_types{i});
     title(ip_types{i});

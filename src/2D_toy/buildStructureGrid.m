@@ -7,15 +7,15 @@ function [cell_struct, face_struct, vertices, cells] = buildStructureGrid(nx, nz
     X = X';
     Z = Z';
 
-    lambda_x = 2;
-    lambda_z = 2;
-    amp_x = 4.0 * 0.0125;
-    amp_z = 1.0 * 0.0125;
+    lambda_x = 4;
+    lambda_z = 4;
+    amp_x = 0.05;
+    amp_z = 0.05;
 
     for i = 2:nx
         for j = 2:nz
             X(i,j) = X(i,j) + amp_x * sin(lambda_x*pi * X(i,j)) * sin(lambda_z*pi * Z(i,j));
-            Z(i,j) = Z(i,j) + amp_z * cos(lambda_x*pi * X(i,j)) * sin(lambda_z*pi * Z(i,j));
+            Z(i,j) = Z(i,j) + amp_z * sin(lambda_x*pi * X(i,j)) * sin(lambda_z*pi * Z(i,j));
         end
     end
 

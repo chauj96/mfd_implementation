@@ -59,12 +59,14 @@ function M = buildMmatrixParametric(cell_struct, face_struct, ip_type)
                 U = eye(cell_nf) - Q * Q';
                 di = diag(1 ./ a);
                 invT = (C * (K \ C'))./v + (v / t)*(di * U * di);
-
+                %aka = 0;
+                
                 % Qs = orth(bsxfun(@times, C, a));
                 % Us = eye(cell_nf) - Qs * Qs';
                 % di = diag(a);
                 % T = (N * K * N')./v + (t/v)*(di * Us * di);
-                % norm(inv(T) - invT)
+                %invT = inv(T);
+                %norm(inv(T) - invT)
 
             case 'tpfa'
                 td = sum(C .* (N * K), 2) ./ sum(C .* C, 2);
@@ -83,4 +85,8 @@ function M = buildMmatrixParametric(cell_struct, face_struct, ip_type)
     end
 
     M = sparse(rows, cols, vals, n_faces, n_faces);
+
+% imagesc(M);
+% colorbar;
+% title('M Plot');
 end

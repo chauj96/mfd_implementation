@@ -31,15 +31,42 @@ function plotPressurePolygonal(vertices, cells, p_sol, title_suffix)
     P_interp = F(X, Y);
 
     % Plot colored and thick contour lines
-    hold on;
-    [C, h] = contour(X, Y, P_interp, 13, 'LineColor', [1.0, 0.0, 0.0]);
-    h.LineWidth = 3;                     % Thicker lines
-    
-    clabel(C, h, 'FontSize', 12, 'Color', 'k');
+    % hold on;
+    % [C, h] = contour(X, Y, P_interp, 9, 'LineColor', [1.0, 0.0, 0.0]);
+    % h.LineWidth = 3;                     % Thicker lines
+    % 
+    % clabel(C, h, 'FontSize', 12, 'Color', 'k');
 
     % Use the same colormap for contour and fill
-    colormap(parula);
+    % Apply custom red-blue colormap
+    colormap(gca, redblue(9)); % Call the custom function defined below
+    caxis([0 1]);
     colorbar;
+    
+    %% === Helper: redblue colormap function ===
+    function cmap = redblue(m)
+        if nargin < 1
+            m = size(get(gcf, 'colormap'), 1);
+        end
+        bottom = [0 0 1];       % blue
+        middle = [1 1 1];       % white
+        top    = [1 0 0];       % red
+    
+        % Interpolation for smooth transition
+        n_half = floor(m/2);
+        if mod(m,2)==0
+            % Even number of levels
+            r = [linspace(bottom(1), middle(1), n_half), linspace(middle(1), top(1), n_half)];
+            g = [linspace(bottom(2), middle(2), n_half), linspace(middle(2), top(2), n_half)];
+            b = [linspace(bottom(3), middle(3), n_half), linspace(middle(3), top(3), n_half)];
+        else
+            % Odd number of levels
+            r = [linspace(bottom(1), middle(1), n_half), middle(1), linspace(middle(1), top(1), n_half)];
+            g = [linspace(bottom(2), middle(2), n_half), middle(2), linspace(middle(2), top(2), n_half)];
+            b = [linspace(bottom(3), middle(3), n_half), middle(3), linspace(middle(3), top(3), n_half)];
+        end
+        cmap = [r', g', b'];
+    end
 
     title(['Pressure Field: ', title_suffix]);
     xlabel('x');

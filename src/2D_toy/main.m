@@ -28,12 +28,7 @@ end
 
 % Step 2: Build matrix M, B, T / Assemble the matrices
 % TPFA case
-%M = buildMmatrix(cell_struct, face_struct, 'tpfa');
-
-% General parametric
-%M = buildMmatrixParametric(cell_struct, face_struct, 'tpfa');
-%M = buildMmatrixParametric(cell_struct, face_struct, 'simple');
-M = buildMmatrixParametric(cell_struct, face_struct, 'general_parametric');
+M = buildMmatrix(cell_struct, face_struct, 'tpfa');
 
 B = buildBmatrix(cell_struct, face_struct);
 T = buildTmatrix(cell_struct);
@@ -71,7 +66,7 @@ p_sol = sol(n_faces+1:end);
 m_flux = M \ (-B' * p_sol - rhs_Dirichlet);
 
 % Step 6: Plot the pressure field
-plotPressurePolygonal(vertices, cells, p_sol);
+plotPressurePolygonal(vertices, cells, p_sol, "direct tpfa");
 
 % Step 7: Plot stream lines from flux
 %plotStreamlinesFromFlux(cell_struct, face_struct, m_flux);
