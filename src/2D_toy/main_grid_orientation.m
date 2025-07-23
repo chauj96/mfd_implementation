@@ -3,7 +3,7 @@ clear all; clc; close all;
 addpath('PolyMesher/');
 
 % case options: 'structured' or 'unstructured'
-case_type = 'unstructured';
+case_type = 'structured';
 
 dt = 1;
 nx = 51;
@@ -79,7 +79,7 @@ for i = 1:length(ip_types)
         ref =  ['p_',ip_types{i}];
         comp = ['p_',ip_types{j}];
         diff_norm = norm(p_solutions.(ip_types{i}) - p_solutions.(ip_types{j})) / norm(p_solutions.(ip_types{i}));
-        fprintf('|| %s - %s || = %.3e\n', ref, comp, diff_norm);
+        fprintf('|| %s - %s || / || %s || = %.3e\n', ref, comp, ref, diff_norm);
     end
 end
 
