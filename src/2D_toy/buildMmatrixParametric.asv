@@ -66,8 +66,11 @@ function M = buildMmatrixParametric(cell_struct, face_struct, ip_type)
             case 'simple'
                 t = 6 * sum(diag(K))/dim;
                 Q = orth(bsxfun(@rdivide, N, a));
-                assert(rank(N)==2)
+                assert(rank(N))
                 U = eye(cell_nf) - Q * Q';
+                err_U = norm(U * Q, 'fro');      % should be ≈ 0
+                fprintf('||U*Q||_F = %.2e\n', err_U);
+
                 di = diag(1 ./ a);
                 invT_reg = (v / t).*(di * U * di);
                 invT = (C * (K \ C'))./v + invT_reg;

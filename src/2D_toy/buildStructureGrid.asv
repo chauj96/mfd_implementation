@@ -45,8 +45,8 @@ function [cell_struct, face_struct, vertices, cells] = buildStructureGrid(nx, nz
 
             % Compute cell center and area using shoelace formula
             pts = vertices(vids, :);
-            xc = mean(pts, 1)';
-            cell_struct(cell_id).center = xc;
+                            xcenter = cell_struct(cell_id).center(:);
+            cell_struct(cell_id).center = mean(pts, 1);
             x = pts(:,1);
             z = pts(:,2);
             area = 0.5 * abs(sum(x .* circshift(z,-1)) - sum(z .* circshift(x,-1)));

@@ -69,7 +69,9 @@ for i = 1:length(ip_types)
        B_star = A(1:n_faces, n_faces+1:end);
        m_flux = -M_star \ (B_star * p_proj + rhs_Dirichlet);
        diff_flux = (m_proj - m_sol)/norm(m_proj);
+       diff_flux_norm = norm(diff_flux);
        diff_p = (p_sol - p_proj)/norm(p_proj);
+       diff_p_norm = norm(diff_p);
        darcy_residual = M_star * m_proj + (B_star * p_proj + rhs_Dirichlet);
        aka = 0;
     else
