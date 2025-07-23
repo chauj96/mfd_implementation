@@ -1,6 +1,7 @@
 function plotStreamlinesFromFlux(cell_struct, face_struct, flux)
 
     normals = cell2mat(arrayfun(@(f) f.normal(:), face_struct, 'UniformOutput', false))';
+    areas = cell2mat(arrayfun(@(f) f.area, face_struct, 'UniformOutput', false))';
     xc = cell2mat(arrayfun(@(c) c.center(:), cell_struct, 'UniformOutput', false))';
 
     assert(size(normals,2) == 2, 'Only works for 2D grids.');

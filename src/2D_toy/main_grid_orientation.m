@@ -76,9 +76,9 @@ fprintf('Pairwise norm differences (L2 norm of pressure):\n\n');
 
 for i = 1:length(ip_types)
     for j = i+1:length(ip_types)
-        ref = ip_types{i};
-        comp = ip_types{j};
-        diff_norm = norm(p_solutions.(ref) - p_solutions.(comp)) / norm(p_solutions.(ref));
+        ref =  ['p_',ip_types{i}];
+        comp = ['p_',ip_types{j}];
+        diff_norm = norm(p_solutions.(ip_types{i}) - p_solutions.(ip_types{j})) / norm(p_solutions.(ip_types{i}));
         fprintf('|| %s - %s || = %.3e\n', ref, comp, diff_norm);
     end
 end

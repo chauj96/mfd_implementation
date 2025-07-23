@@ -3,7 +3,7 @@ clear all; clc; close all;
 addpath('PolyMesher/');
 
 % case options: 'structured' or 'unstructured'
-case_type = 'structured';
+case_type = 'unstructured';
 
 dt = 1;
 nx = 51;
@@ -28,7 +28,8 @@ end
 
 % Step 2: Build matrix M, B, T / Assemble the matrices
 % TPFA case
-M = buildMmatrix(cell_struct, face_struct, 'tpfa');
+ip_type = 'simple';
+M = buildMmatrixParametric(cell_struct, face_struct, ip_type);
 
 B = buildBmatrix(cell_struct, face_struct);
 T = buildTmatrix(cell_struct);
@@ -63,20 +64,9 @@ n_faces = length(face_struct);
 m_sol = sol(1:n_faces);
 p_sol = sol(n_faces+1:end);
 
-m_flux = M \ (-B' * p_sol - rhs_Dirichlet);
-
 % Step 6: Plot the pressure field
-plotPressurePolygonal(vertices, cells, p_sol, "direct tpfa");
+plotPressurePolygonal(vertices, cells, p_sol, ip_type);
 
 % Step 7: Plot stream lines from flux
-%plotStreamlinesFromFlux(cell_struct, face_struct, m_flux);
-
-% (Option) Check perturbation / mesh structure
-% figure;
-% for c = 1:length(cells)
-%     poly = vertices(cells{c}, :);
-%     patch(poly(:,1), poly(:,2), 'w', 'EdgeColor', 'k');
-% end
-% axis equal;
-% title('Check perturbation and mesh structure');
+plotStreamlinesFromFlux(cell_struct, face_struct, m_sol);
 
