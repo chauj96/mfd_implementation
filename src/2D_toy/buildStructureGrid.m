@@ -9,8 +9,8 @@ function [cell_struct, face_struct, vertices, cells] = buildStructureGrid(nx, nz
 
     lambda_x = 4;
     lambda_z = 4;
-    amp_x = 0.0*0.05;
-    amp_z = 0.0*0.05;
+    amp_x = 4.0*0.05;
+    amp_z = 4.0*0.05;
 
     for i = 2:nx
         for j = 2:nz

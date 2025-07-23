@@ -83,6 +83,7 @@ function M = buildMmatrixParametric(cell_struct, face_struct, ip_type)
                 invT = diag(1 ./ abs(td));
         end
 
+        c
         % test consistency conditions
         Cm = norm(invT * N * K - C);
         assert(Cm < 1.0e-12);
