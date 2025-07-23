@@ -98,8 +98,6 @@ for i = 1:length(ip_types)
     end
 end
 
-%plotPressurePolygonal(vertices, cells, p_solutions.(ip_types{1}), ip_types{1})
-
 for i = 1:length(ip_types)
     plotPressurePolygonal(vertices, cells, p_solutions.(ip_types{i}),ip_types{i});
     title(ip_types{i});

@@ -39,7 +39,7 @@ for e_idx = 1:length(epsilon_vals)
         rhs = rhs_partial + rhs_BC;
         
         sol = A \ -rhs;
-        m_sol = sol(1:n_faces)
+        m_sol = sol(1:n_faces);
         p_sol = sol(n_faces+1:end);
         p_solutions.(ip_type) = p_sol;
         

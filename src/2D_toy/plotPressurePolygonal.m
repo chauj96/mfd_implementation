@@ -31,11 +31,11 @@ function plotPressurePolygonal(vertices, cells, p_sol, title_suffix)
     P_interp = F(X, Y);
 
     % Plot colored and thick contour lines
-    % hold on;
-    % [C, h] = contour(X, Y, P_interp, 9, 'LineColor', [1.0, 0.0, 0.0]);
-    % h.LineWidth = 3;                     % Thicker lines
-    % 
-    % clabel(C, h, 'FontSize', 12, 'Color', 'k');
+    hold on;
+    [C, h] = contour(X, Y, P_interp, 9, 'LineColor', [1.0, 0.0, 0.0]);
+    h.LineWidth = 3;                     % Thicker lines
+
+    clabel(C, h, 'FontSize', 12, 'Color', 'k');
 
     % Use the same colormap for contour and fill
     % Apply custom red-blue colormap
