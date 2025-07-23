@@ -2,8 +2,8 @@ function [cell_struct, face_struct] = initPhysicalParams(cell_struct, face_struc
 
     % constants
     K_base = [1.0, 0.0;
-                0.0, 1.0]; % permeability tensor
-    theta = 0;                     % angle in degrees
+                0.0, 1000.0]; % permeability tensor
+    theta = 30;                     % angle in degrees
     theta_rad = deg2rad(theta);     % convert to radians
     
     R = [cos(theta_rad), -sin(theta_rad); 
