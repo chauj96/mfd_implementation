@@ -6,8 +6,8 @@ addpath('PolyMesher/');
 case_type = 'structured';
 
 dt = 1;
-nx = 11;
-nz = 11;
+nx = 81;
+nz = 81;
 Lx = 1.0;
 Lz = 1.0;
 rho = 1000;
@@ -40,7 +40,7 @@ rhs_Dirichlet = dirichletBoundary(cell_struct, face_struct);
 p_solutions = struct();
 
 % List of inner product types
-ip_types = {'simple'};
+ip_types = {'tpfa', 'simple', 'general_parametric'};
 n_faces = length(face_struct);
 
 solve_full_LS = true;

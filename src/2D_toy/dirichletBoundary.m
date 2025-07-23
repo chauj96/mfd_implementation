@@ -19,7 +19,7 @@ function rhs_Dirichlet = dirichletBoundary(cell_struct, face_struct)
             sigma = signs(j);
             area_f = face_struct(f).area;
             p_D = face_struct(f).BC_pressure;
-            rhs_Dirichlet(f) = sigma * p_D * area_f;
+            rhs_Dirichlet(f) = sigma * p_D;
         end
     end
 

@@ -40,6 +40,7 @@ function M = buildMmatrixParametric(cell_struct, face_struct, ip_type)
             d = Cf - Cc; 
             df = d;
             signf = sign((df')/norm(df) * Nf);
+            assert (signf == signs(idx))
             C(idx,:) = df';
             N(idx,:) = Af * signf * (Nf');
             a(idx)   = Af;
@@ -61,7 +62,9 @@ function M = buildMmatrixParametric(cell_struct, face_struct, ip_type)
 
                 % test consistency conditions
                 Cm = norm(invT * N * K - C);
-                assert(Cm < 1.0e-12);                
+                assert(Cm < 1.0e-12); 
+
+                %invT = (signs * signs') .* invT;
 
             case 'simple'
                 t = 6 * sum(diag(K))/dim;
@@ -80,6 +83,8 @@ function M = buildMmatrixParametric(cell_struct, face_struct, ip_type)
                 Cm = norm(invT * N * K - C);
                 assert(Cm < 1.0e-12);
 
+                %invT = (signs * signs') .* invT;
+
             case 'tpfa'
                 td = sum(C .* (N * K), 2) ./ sum(C .* C, 2);
                 invT = diag(1 ./ abs(td));
@@ -95,6 +100,8 @@ function M = buildMmatrixParametric(cell_struct, face_struct, ip_type)
         assert(vol_res < 1.0e-12);
 
 
+        % signed_M = (signs * signs') .* invT;
+        % scaled_M =  signed_M .* (a * a');
         for i = 1:cell_nf
             fi = face_ids(i);
             for j = 1:cell_nf
@@ -102,6 +109,7 @@ function M = buildMmatrixParametric(cell_struct, face_struct, ip_type)
                 rows(end+1) = fi;
                 cols(end+1) = fj;
                 vals(end+1) = signs(i) * signs(j) * invT(i,j);
+                %vals(end+1) = invT(i,j);
             end
         end
     end

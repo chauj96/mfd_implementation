@@ -18,7 +18,7 @@ function B = buildBmatrix(cell_struct, face_struct)
     
             rows(end+1) = k;
             cols(end+1) = f;
-            vals(end+1) = sigma * area_f;
+            vals(end+1) = sigma;
         end
     end
     

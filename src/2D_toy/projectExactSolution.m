@@ -21,6 +21,6 @@ function [q_faces, p_cells] = projectExactSolution(cell_struct, face_struct)
         n = face_struct(f).normal(:);      % face normal (column vector)
         a = face_struct(f).area;
         flux_exact = [1; 0];               % constant flux
-        q_faces(f) = dot(flux_exact, n * a) * a;
+        q_faces(f) = dot(flux_exact, n);
     end
 end
