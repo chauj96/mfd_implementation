@@ -3,7 +3,7 @@ function [cell_struct, face_struct] = initPhysicalParams(cell_struct, face_struc
     % constants
     K_base = [1.0, 0.0;
                 0.0, 1.0]; % permeability tensor
-    theta = 0;                     % angle in degrees
+    theta = 0;                     % angle in degrees  (30)
     theta_rad = deg2rad(theta);     % convert to radians
     
     R = [cos(theta_rad), -sin(theta_rad); 
@@ -36,10 +36,10 @@ function [cell_struct, face_struct] = initPhysicalParams(cell_struct, face_struc
 
 
     BC_Dirichlet_map = containers.Map([west_idx; east_idx], [repmat(1, 1, length(west_idx)),repmat(0, 1, length(east_idx))]);
- %   BC_Dirichlet_map = containers.Map([top_idx], [repmat(4, 1, length(top_idx))]);
+   % BC_Dirichlet_map = containers.Map([top_idx], [repmat(4, 1, length(top_idx))]);
 
     BC_Neumann_map = containers.Map([top_idx; bottom_idx], [repmat(0.0, 1, length(top_idx)),repmat(0.0, 1, length(bottom_idx))]);
-%    BC_Neumann_map = containers.Map([east_idx; west_idx; bottom_idx], [repmat(0.0, 1, length(east_idx)),repmat(0.0, 1, length(west_idx)),repmat(0.0, 1, length(bottom_idx))]);
+   % BC_Neumann_map = containers.Map([east_idx; west_idx; bottom_idx], [repmat(0.0, 1, length(east_idx)),repmat(0.0, 1, length(west_idx)),repmat(0.0, 1, length(bottom_idx))]);
     
     % assign to each cell
     for c = 1:length(cell_struct)

@@ -3,11 +3,11 @@ clear all; clc; close all;
 addpath('PolyMesher/');
 
 % case options: 'structured' or 'unstructured'
-case_type = 'unstructured';
+case_type = 'structured';
 
 dt = 1;
-nx = 51;
-nz = 51;
+nx = 11;
+nz = 11;
 Lx = 1.0;
 Lz = 1.0;
 rho = 1000;
@@ -28,7 +28,7 @@ end
 
 % Step 2: Build matrix M, B, T / Assemble the matrices
 % TPFA case
-ip_type = 'simple';
+ip_type = 'tpfa';
 M = buildMmatrixParametric(cell_struct, face_struct, ip_type);
 
 B = buildBmatrix(cell_struct, face_struct);
@@ -68,5 +68,5 @@ p_sol = sol(n_faces+1:end);
 plotPressurePolygonal(vertices, cells, p_sol, ip_type);
 
 % Step 7: Plot stream lines from flux
-plotStreamlinesFromFlux(cell_struct, face_struct, m_sol);
+% plotStreamlinesFromFlux(cell_struct, face_struct, m_sol);
 
