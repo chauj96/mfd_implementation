@@ -137,20 +137,39 @@ for el=1:size(Element0,1)
   Element{el} = Element{el}(iix);
 end
 %---------------------------------------------------------------- PLOT MESH
+% function PolyMshr_PlotMsh(Node,Element,NElem,Supp,Load)
+% clf; axis equal; axis off; hold on;
+% Element = Element(1:NElem)';                 %Only plot the first block
+% MaxNVer = max(cellfun(@numel,Element));      %Max. num. of vertices in mesh
+% PadWNaN = @(E) [E NaN(1,MaxNVer-numel(E))];  %Pad cells with NaN
+% ElemMat = cellfun(PadWNaN,Element,'UniformOutput',false);
+% ElemMat = vertcat(ElemMat{:});               %Create padded element matrix
+% patch('Faces',ElemMat,'Vertices',Node,'FaceColor','w'); pause(1e-6)
+% if exist('Supp','var')&&~isempty(Supp) %Plot Supp BC if specified
+%   plot(Node(Supp(:,1),1),Node(Supp(:,1),2),'b','MarkerSize',8);
+% end
+% if exist('Load','var')&&~isempty(Load) %Plot Load BC if specified
+%   plot(Node(Load(:,1),1),Node(Load(:,1),2),'m','MarkerSize',8);
+% end
 function PolyMshr_PlotMsh(Node,Element,NElem,Supp,Load)
-clf; axis equal; axis off; hold on;
-Element = Element(1:NElem)';                 %Only plot the first block
-MaxNVer = max(cellfun(@numel,Element));      %Max. num. of vertices in mesh
-PadWNaN = @(E) [E NaN(1,MaxNVer-numel(E))];  %Pad cells with NaN
+clf; axis equal; axis off; box off; hold on;
+Element = Element(1:NElem)';                 
+MaxNVer = max(cellfun(@numel,Element));      
+PadWNaN = @(E) [E NaN(1,MaxNVer-numel(E))];  
 ElemMat = cellfun(PadWNaN,Element,'UniformOutput',false);
-ElemMat = vertcat(ElemMat{:});               %Create padded element matrix
-patch('Faces',ElemMat,'Vertices',Node,'FaceColor','w'); pause(1e-6)
-if exist('Supp','var')&&~isempty(Supp) %Plot Supp BC if specified
-  plot(Node(Supp(:,1),1),Node(Supp(:,1),2),'b>','MarkerSize',8);
-end
-if exist('Load','var')&&~isempty(Load) %Plot Load BC if specified
-  plot(Node(Load(:,1),1),Node(Load(:,1),2),'m^','MarkerSize',8);
-end
+ElemMat = vertcat(ElemMat{:});               
+patch('Faces',ElemMat,'Vertices',Node,'FaceColor','w','EdgeColor','k'); 
+pause(1e-6)
+
+% 주석 처리해서 Supp/Load 표시 아예 없애기
+% if exist('Supp','var')&&~isempty(Supp)
+%   plot(Node(Supp(:,1),1),Node(Supp(:,1),2),'b>','MarkerSize',8);
+% end
+% if exist('Load','var')&&~isempty(Load)
+%   plot(Node(Load(:,1),1),Node(Load(:,1),2),'m^','MarkerSize',8);
+% end
+
+set(gca,'XColor','none','YColor','none')  % 축 색 없애기
 %-------------------------------------------------------------------------%
 %------------------------ PolyMesher - History ---------------------------%
 % version: 1.1 (Aug13)

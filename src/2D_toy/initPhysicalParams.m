@@ -1,9 +1,9 @@
-function [cell_struct, face_struct] = initPhysicalParams(cell_struct, face_struct, Lx, Lz, case_type)
+function [cell_struct, face_struct, phys] = initPhysicalParams(cell_struct, face_struct, Lx, Lz, case_type)
 
     % constants
     K_base = [1.0, 0.0;
                 0.0, 1.0]; % permeability tensor
-    theta = 0;                     % angle in degrees  (30)
+    theta = 0;                     % angle in degrees (30)
     theta_rad = deg2rad(theta);     % convert to radians
     
     R = [cos(theta_rad), -sin(theta_rad); 
@@ -15,6 +15,10 @@ function [cell_struct, face_struct] = initPhysicalParams(cell_struct, face_struc
     g_val = 0.0; % gravitational acceleration [m/s^2]
     gravity_dir = [0; -1];
     tol = 1e-6;
+
+    % compute analytical flux
+    grad_pref = [-1/Lx; 0];
+    m_ref_vec = -K_tensor * grad_pref;
 
     % fetch face centers
     if strcmp(case_type, 'structured')
@@ -71,5 +75,19 @@ function [cell_struct, face_struct] = initPhysicalParams(cell_struct, face_struc
         end
      
     end
+
+    % === Compute analytical flux per face ===
+    n_faces = length(face_struct);
+    m_ref_faces = zeros(n_faces,1);
+    for f = 1:n_faces
+        n_f = face_struct(f).normal(:);
+        n_f = n_f / norm(n_f);
+        Af = face_struct(f).area;
+        m_ref_faces(f) = Af * dot(m_ref_vec, n_f);
+    end
+    phys.K_tensor = K_tensor;
+    phys.grad_pref = grad_pref;
+    phys.m_ref_vec = m_ref_vec;
+    phys.m_ref_faces = m_ref_faces;
 
 end
