@@ -7,11 +7,30 @@ function [cell_struct, face_struct, vertices, cells] = buildStructureGrid(nx, nz
     X = X';
     Z = Z';
 
-    % Perturb internal vertices only (exclude boundaries)
+    % Distortion type: whole third column
+    % col = 4; 
+    % amp = 0.5 * (Lx/nx);      
+    % lambda = 2;                
+    % 
+    % for j = 1:(nz+1)
+    %     X(col,j) = X(col,j) + amp * sin(lambda*pi*Z(col,j)/Lz);
+    % 
+    %     % distortion in Z
+    %     % Z(col,j) = Z(col,j) + amp * sin(lambda*pi*Z(col,j)/Lz);
+    % end
+
+
+
+    % Distortion type: point distortion
+    i = 3; j = 2; 
+    X(i,j) = X(i,j) + 0.5*(Lx/nx);   
+    Z(i,j) = Z(i,j) - 0.5*(Lz/nz);
+
+    % Distortion type: sinusoidal distortion on the inner domain
     lambda_x = 4;
     lambda_z = 4;
-    amp_x = 4.0*0.0125;
-    amp_z = 4.0*0.0125;
+    amp_x = 0.02 * 0.0125;
+    amp_z = 0.02 * 0.0125;
     for i = 2:nx
         for j = 2:nz
             X(i,j) = X(i,j) + amp_x * sin(lambda_x*pi * X(i,j)) * sin(lambda_z*pi * Z(i,j));
