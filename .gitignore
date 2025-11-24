@@ -1,3 +1,17 @@
-*.DS_Store
-.DS_Store
+# macOS files
+**.DS_Store
+**.Trashes
+
+# MATLAB backup and autosave files
 *.asv
+*.m~ 
+*.slxc
+*.autosave
+
+# MATLAB local configuration files
+matlabprefs.mat
+matlab.prf
+*.mldatx
+*.mlproj
+*.m~*
+
