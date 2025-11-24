@@ -1,0 +1,86 @@
+function [cell_struct, face_struct, phys] = initPhysicalParams(cell_struct, face_struct, Lx, Lz, case_type)
+
+    % constants
+    K_base = [1.0, 0.0;
+                0.0, 1.0]; % permeability tensor
+    theta = 0;                     % angle in degrees (30)
+    theta_rad = deg2rad(theta);     % convert to radians
+    
+    R = [cos(theta_rad), -sin(theta_rad); 
+         sin(theta_rad),  cos(theta_rad)];  % rotation matrix
+    
+    K_tensor = R * K_base * R';
+    phi_vals = 0; % porosity
+    rho_vals = 1000; % fluid density [kg/m^3]
+    g_val = 0.0; % gravitational acceleration [m/s^2]
+    gravity_dir = [0; -1];
+    tol = 1e-6;
+
+    % compute analytical flux
+    grad_pref = [-1/Lx; 0];
+    m_ref_vec = -K_tensor * grad_pref;
+
+    % fetch face centers
+    if strcmp(case_type, 'structured')
+        f_centers = vertcat(face_struct.center);
+    elseif strcmp(case_type, 'unstructured')
+        n_faces = length(face_struct);
+        f_centers = zeros(n_faces,2) ; % preallocate
+    
+        for f = 1:n_faces
+            f_centers(f, :) = face_struct(f).center(:)';
+        end
+    end
+
+    bottom_idx = find(abs(f_centers(:,2) - 0.0) < tol);
+    top_idx = find(abs(f_centers(:,2) - Lz) < tol);
+    west_idx = find(abs(f_centers(:,1) - 0.0) < tol);
+    east_idx = find(abs(f_centers(:,1) - Lx) < tol);
+
+
+
+    BC_Dirichlet_map = containers.Map([west_idx; east_idx], [repmat(1, 1, length(west_idx)),repmat(0, 1, length(east_idx))]);
+   % BC_Dirichlet_map = containers.Map([top_idx], [repmat(4, 1, length(top_idx))]);
+
+    BC_Neumann_map = containers.Map([top_idx; bottom_idx], [repmat(0.0, 1, length(top_idx)),repmat(0.0, 1, length(bottom_idx))]);
+   % BC_Neumann_map = containers.Map([east_idx; west_idx; bottom_idx], [repmat(0.0, 1, length(east_idx)),repmat(0.0, 1, length(west_idx)),repmat(0.0, 1, length(bottom_idx))]);
+    
+    % assign to each cell
+    for c = 1:length(cell_struct)
+        cell_struct(c).K = K_tensor;
+
+        cell_struct(c).phi = phi_vals;
+        cell_struct(c).rho = rho_vals;
+    end
+    
+    % assign gravity and density to each face
+    for f = 1:length(face_struct)
+
+        face_struct(f).gravity = g_val * gravity_dir;
+        face_struct(f).rho = rho_vals;
+
+        if isKey(BC_Dirichlet_map, f)
+            face_struct(f).BC_pressure = BC_Dirichlet_map(f);
+        end
+
+        if isKey(BC_Neumann_map, f)
+            face_struct(f).BC_flux = BC_Neumann_map(f);
+        end
+     
+    end
+
+    % === Compute analytical flux per face ===
+    n_faces = length(face_struct);
+    m_ref_faces = zeros(n_faces,1);
+    for f = 1:n_faces
+        n_f = face_struct(f).normal(:);
+        n_f = n_f / norm(n_f);
+        Af = face_struct(f).area;
+        m_ref_faces(f) = Af * dot(m_ref_vec, n_f);
+    end
+    phys.K_tensor = K_tensor;
+    phys.grad_pref = grad_pref;
+    phys.m_ref_vec = m_ref_vec;
+    phys.m_ref_faces = m_ref_faces;
+
+end
