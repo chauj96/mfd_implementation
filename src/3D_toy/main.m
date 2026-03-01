@@ -29,7 +29,7 @@ ny = 30;
 
 %% Step 3: Assign physical values and get projection of analytical solution (flux and pressure)
 ip_type = 'tpfa';
-tol = 1e-6; % Tolerance for residual-based cell classification
+tol = 1e-9; % Tolerance for residual-based cell classification
 g_c = 0.0;
 dt = 1;
 
