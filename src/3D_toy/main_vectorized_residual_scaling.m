@@ -303,15 +303,19 @@ end % for it
 figure;
 yyaxis left;
 loglog(tol_values, rel_l2_errors, '-o', 'LineWidth', 1.5, 'DisplayName', 'Relative L2 error');
+hold on;
+loglog(tol_values, tol_values, '-', 'LineWidth', 1.5, 'Color', 'k', 'DisplayName', 'y = tol');
+set(gca, 'XScale', 'log', 'YScale', 'log');
 ylabel('Relative L2 error');
 
 yyaxis right;
 loglog(tol_values, abs_l2_errors, '-s', 'LineWidth', 1.5, 'DisplayName', 'Absolute L2 error');
+set(gca, 'YScale', 'log');
 ylabel('Absolute L2 error');
 
 xlabel('tol');
 title('L2 errors vs tolerance');
-legend('Relative L2 error', 'Absolute L2 error', 'Location', 'best');
+legend('Relative L2 error', 'y = tol', 'Absolute L2 error', 'Location', 'best');
 grid on;
 
 % Plot TPFA cell count vs tol
