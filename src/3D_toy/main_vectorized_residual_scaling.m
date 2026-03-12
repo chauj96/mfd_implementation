@@ -30,7 +30,7 @@ Lz = 100.0;
 [cell_struct, face_struct, V3, cells3D] = extend2Dto3D(V2, cells2D, H);
 
 %% Step 3: Assign physical values and get projection of analytical solution (flux and pressure)
-ip_type = 'tpfa';
+ip_type = 'simple';
 %tol = 1e-4; % Tolerance for residual-based cell classification
 % run for a vector of tolerances: 1e-1 .. 1e-9
 tol_values = 10.^-(0:9); % [1e-0,1e-1, 1e-2, ..., 1e-9]
@@ -41,8 +41,7 @@ tpfa_counts   = zeros(n_tol,1);
 
 % We'll loop over tol_values below (start loop after projection)
 % per-iteration tolerance (will be set inside the loop)
-%tol = 1e-4; % (replaced by tol_values)
-eps_solver = 1.0e-5;
+eps_solver = 1.0e-11;
 g_c = 0.0;
 dt = 1;
 
