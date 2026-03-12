@@ -21,7 +21,7 @@ Lz = 100.0;
 % Lx = 1.0;
 % Ly = 1.0;
 % Lz = 1.0;
-% alpha = 1;
+% alpha = 3;
 % nx = alpha*30;
 % ny = alpha*30;
 % [cell2D, face2D, V2, cells2D] = buildTestMesh(nx, ny, Lx, Ly);
@@ -42,7 +42,7 @@ tpfa_counts   = zeros(n_tol,1);
 % We'll loop over tol_values below (start loop after projection)
 % per-iteration tolerance (will be set inside the loop)
 %tol = 1e-4; % (replaced by tol_values)
-eps_solver = 1.0e-11;
+eps_solver = 1.0e-5;
 g_c = 0.0;
 dt = 1;
 
@@ -78,17 +78,18 @@ for it = 1:n_tol
      face_ids = cell_struct(cn).faces;
      signs    = cell_struct(cn).faces_orientation(:);
 
-     M_K = cell_struct(cn).M;
+     M_K = signs .* cell_struct(cn).M;
      B_K = cell_struct(cn).B;
 
      mK  = signs .* m_proj(face_ids);
      pK  = p_proj(cn);
      d_K = signs .* d_all(face_ids); % vectorized local Dirichlet (no inner loop)
 
-     DeltaP_K = norm(- B_K * pK + d_K);
-     R_K = (signs .* M_K) * mK - B_K * pK + d_K; % residual equation
-     % res_3D(face_ids)    = res_3D(face_ids)    + R_K;
-     res_3D(face_ids)    = res_3D(face_ids)    + R_K / norm(DeltaP_K); % dimensionless
+     DeltaP_K = - B_K * pK + d_K;
+     R_K = M_K * mK - B_K * pK + d_K; % residual equation
+     R_K = (M_K * mK - B_K * pK + d_K) / norm(DeltaP_K); % scaled residual equation
+     res_3D(face_ids)    = res_3D(face_ids)    + R_K;
+     fprintf("Projected local residual norm: %f\n", norm(R_K));
      res_count(face_ids) = res_count(face_ids) + 1;
  end
 
