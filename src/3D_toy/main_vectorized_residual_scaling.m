@@ -331,21 +331,28 @@ end % for it
 
 % Plot both errors in one figure with dual y-axes
 figure;
+left_color  = [0.2 0.4 0.8];   % blue  – relative error axis
+right_color = [0.8 0.2 0.2];   % red   – absolute error axis
+
 yyaxis left;
-loglog(tol_values, rel_l2_errors, '-o', 'LineWidth', 1.5, 'DisplayName', 'Relative L2 error');
+set(gca, 'YColor', left_color);
+loglog(tol_values, rel_l2_errors, '-o', 'LineWidth', 1.5, 'Color', left_color,  'DisplayName', 'Relative L2 error');
 hold on;
-loglog(tol_values, tol_values, '-', 'LineWidth', 1.5, 'Color', 'k', 'DisplayName', 'y = tol');
+loglog(tol_values, tol_values,    '--',  'LineWidth', 1.2, 'Color', left_color,  'DisplayName', 'y = tol (left)');
 set(gca, 'XScale', 'log', 'YScale', 'log');
 ylabel('Relative L2 error');
 
 yyaxis right;
-loglog(tol_values, abs_l2_errors, '-s', 'LineWidth', 1.5, 'DisplayName', 'Absolute L2 error');
+set(gca, 'YColor', right_color);
+loglog(tol_values, abs_l2_errors, '-s',  'LineWidth', 1.5, 'Color', right_color, 'DisplayName', 'Absolute L2 error');
+hold on;
+loglog(tol_values, tol_values,    '--',  'LineWidth', 1.2, 'Color', right_color, 'DisplayName', 'y = tol (right)');
 set(gca, 'YScale', 'log');
 ylabel('Absolute L2 error');
 
 xlabel('tol');
 title(sprintf('L2 errors vs tolerance  (||m_{ref}||_{L2} = %.4e)', ref_l2_norm));
-legend('Relative L2 error', 'y = tol', 'Absolute L2 error', 'Location', 'best');
+legend('Relative L2 error', 'y = tol (left)', 'Absolute L2 error', 'y = tol (right)', 'Location', 'best');
 grid on;
 
 % Plot TPFA cell count vs tol
