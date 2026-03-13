@@ -30,7 +30,7 @@ Lz = 100.0;
 [cell_struct, face_struct, V3, cells3D] = extend2Dto3D(V2, cells2D, H);
 
 %% Step 3: Assign physical values and get projection of analytical solution (flux and pressure)
-ip_type = 'simple';
+ip_type = 'tpfa';
 %tol = 1e-4; % Tolerance for residual-based cell classification
 % run for a vector of tolerances: 1e-1 .. 1e-9
 tol_values = 10.^-(0:9); % [1e-0,1e-1, 1e-2, ..., 1e-9]
@@ -38,10 +38,15 @@ n_tol = length(tol_values);
 abs_l2_errors = zeros(n_tol,1);
 rel_l2_errors = zeros(n_tol,1);
 tpfa_counts   = zeros(n_tol,1);
+gmres_iters   = zeros(n_tol,1);
+cond_M_vals   = zeros(n_tol,1);
+nnz_M_vals    = zeros(n_tol,1);
+mfd_area_ratio = zeros(n_tol,1);
 
 % We'll loop over tol_values below (start loop after projection)
 % per-iteration tolerance (will be set inside the loop)
 eps_solver = 1.0e-11;
+gmres_niter = 1000;
 g_c = 0.0;
 dt = 1;
 
@@ -85,15 +90,16 @@ for it = 1:n_tol
      d_K = signs .* d_all(face_ids); % vectorized local Dirichlet (no inner loop)
 
      DeltaP_K = - B_K * pK + d_K;
-     R_K = M_K * mK - B_K * pK + d_K; % residual equation
+     % R_K = M_K * mK - B_K * pK + d_K; % residual equation
      R_K = (M_K * mK - B_K * pK + d_K) / norm(DeltaP_K); % scaled residual equation
      res_3D(face_ids)    = res_3D(face_ids)    + R_K;
-     fprintf("Projected local residual norm: %f\n", norm(R_K));
+     % fprintf("Projected local residual norm: %f\n", norm(R_K));
      res_count(face_ids) = res_count(face_ids) + 1;
  end
 
  % Average contributions at shared faces (avoids inflation with many facets)
- fprintf("Projected residual norm: %f\n", norm(res_3D));
+ 
+ fprintf("Projected residual norm: %e\n", norm(res_3D));
 
  % Vectorized cell marking via accumarray: any face of the cell exceeds tol → mark 1
  face_exceeds = abs(res_3D) > tol; % logical flag per face
@@ -107,6 +113,17 @@ for it = 1:n_tol
  tpfa_count = length(cell_struct) - sum(cellMarking_3D);
  fprintf("TPFA cells = %d out of %d total cells\n", tpfa_count, length(cell_struct));
 
+ % Compute max/min face area ratio for MFD cells
+ mfd_cell_ids = find(cellMarking_3D == 1);
+ if ~isempty(mfd_cell_ids)
+     mfd_face_ids = unique(cell2mat(arrayfun(@(c) cell_struct(c).faces(:), mfd_cell_ids, 'UniformOutput', false)));
+     mfd_areas = area_vector(mfd_face_ids);
+     mfd_area_ratio(it) = max(mfd_areas) / min(mfd_areas);
+ else
+     mfd_area_ratio(it) = NaN;
+ end
+ fprintf('MFD face area ratio (max/min) = %e\n', mfd_area_ratio(it));
+
  % Export to VTU file and save the file (only for the first tol to avoid many files)
  outDir = 'output';
 
@@ -114,10 +131,8 @@ for it = 1:n_tol
      mkdir(outDir);
  end
 
- if it == 1
-     filename = fullfile(outDir, 'mesh.vtu');
-     writeExtrudedMeshVTP(filename, V3, cell_struct, face_struct, cellMarking_3D, 'cellMarking');
- end
+ filename = fullfile(outDir, sprintf('mesh_l_%d.vtu', it-1));
+ writeExtrudedMeshVTP(filename, V3, cell_struct, face_struct, cellMarking_3D, 'cellMarking');
 
  %% Step 5: Solve the global system after the classification
  n_cells = length(cell_struct);
@@ -188,6 +203,9 @@ for it = 1:n_tol
  end
 
  M = sparse(rows, cols, vals, n_faces, n_faces);
+ nnz_M_vals(it) = nnz(M);
+ cond_M_vals(it) = condest(M);
+ fprintf('nnz(M) = %d,  condest(M) = %e\n', nnz_M_vals(it), cond_M_vals(it));
  B = buildBmatrix(cell_struct, face_struct);
  T = buildTmatrix(cell_struct);
 
@@ -254,7 +272,7 @@ for it = 1:n_tol
  t_setup = toc;
 
  t = tic;
- [sol3, flag, total_iters, error] = gmres_r(@(v) matrix * v, -RHS, eps_solver, 500, 1, @(v) block_prec(v, F_mm, A_pm, F_S, num_m_dofs), 0*RHS);
+ [sol3, flag, total_iters, error] = gmres_r(@(v) matrix * v, -RHS, eps_solver, gmres_niter, 1, @(v) block_prec(v, F_mm, A_pm, F_S, num_m_dofs), 0*RHS);
  t_solve = toc(t);
  fprintf('solve linear system time: %.6f s\n', t_solve);
 
@@ -280,10 +298,12 @@ for it = 1:n_tol
  diff_sq = (m_num - m_proj).^2;
 
  % 2. Compute the absolute L2 error: sqrt( sum( Area * error^2 ) )
- abs_l2_error = sqrt(sum(area_vector .* diff_sq));
+ %abs_l2_error = sqrt(sum(area_vector .* diff_sq));
+ abs_l2_error = sqrt(sum(diff_sq));
 
  % 3. Compute the L2 norm of the reference solution for normalization
- ref_l2_norm = sqrt(sum(area_vector .* m_proj.^2));
+ %ref_l2_norm = sqrt(sum(area_vector .* m_proj.^2));
+ ref_l2_norm = sqrt(sum(m_proj.^2));
 
  % 4. Compute Relative Error
  rel_l2_error = abs_l2_error / ref_l2_norm;
@@ -291,11 +311,21 @@ for it = 1:n_tol
  fprintf('Absolute L2 error = %e\n', abs_l2_error);
  fprintf('Relative L2 error = %e\n', rel_l2_error);
 
-    % store errors for this tolerance
+    % store errors and solver info for this tolerance
     abs_l2_errors(it) = abs_l2_error;
     rel_l2_errors(it) = rel_l2_error;
     tpfa_counts(it)   = tpfa_count;
-    fprintf('Stored errors for tol=%e (iter %d)\n', tol, it);
+    gmres_iters(it)   = total_iters;
+    % cond_M_vals and nnz_M_vals already stored above after M assembly
+
+ fprintf('Stored errors for tol=%e (iter %d)\n', tol, it);
+ fprintf('GMRES iters: %10d\n', total_iters);
+ fprintf('True res: %12.3e\n', true_residual_norm);
+ fprintf('True rel res: %12.3e\n', true_relative_residual_norm);
+ fprintf('Rel error   : %12.3e\n', relErr);
+ fprintf('Setup time  : %12.2f s\n', t_setup);
+ fprintf('Solve time  : %12.2f s\n', t_solve);
+
 
 end % for it
 
@@ -314,13 +344,13 @@ set(gca, 'YScale', 'log');
 ylabel('Absolute L2 error');
 
 xlabel('tol');
-title('L2 errors vs tolerance');
+title(sprintf('L2 errors vs tolerance  (||m_{ref}||_{L2} = %.4e)', ref_l2_norm));
 legend('Relative L2 error', 'y = tol', 'Absolute L2 error', 'Location', 'best');
 grid on;
 
 % Plot TPFA cell count vs tol
 figure;
-semilogx(tol_values, tpfa_counts, '-^', 'LineWidth', 1.5, 'Color', [0.2 0.6 0.2]);
+loglog(tol_values, tpfa_counts, '-^', 'LineWidth', 1.5, 'Color', [0.2 0.6 0.2]);
 xlabel('tol');
 ylabel('Number of TPFA cells');
 title('TPFA cell count vs tolerance');
@@ -328,14 +358,45 @@ grid on;
 n_total = length(cell_struct);
 yline(n_total, '--r', sprintf('Total cells = %d', n_total), 'LabelHorizontalAlignment', 'left');
 
- fprintf('m DOFs     : %10d\n', num_m_dofs);
- fprintf('p DOFs     : %10d\n', num_p_dofs);
- fprintf('GMRES iters: %10d\n', total_iters);
- fprintf('True res: %12.3e\n', true_residual_norm);
- fprintf('True rel res: %12.3e\n', true_relative_residual_norm);
- fprintf('Rel error   : %12.3e\n', relErr);
- fprintf('Setup time  : %12.2f s\n', t_setup);
- fprintf('Solve time  : %12.2f s\n', t_solve);
+% Plot: estimated cond(M) vs MFD face area ratio (max/min)
+figure;
+loglog(mfd_area_ratio, cond_M_vals, '-o', 'LineWidth', 1.5, 'Color', [0.8 0.4 0.0]);
+xlabel('Max/min face area ratio (MFD cells)');
+ylabel('Estimated cond(M)');
+title('Condition number of M vs MFD face area ratio');
+grid on;
+% annotate each point with the corresponding tol value
+for k = 1:n_tol
+    if ~isnan(mfd_area_ratio(k))
+        text(mfd_area_ratio(k), cond_M_vals(k), sprintf('  tol=%.0e', tol_values(k)), 'FontSize', 7);
+    end
+end
 
+% Plot: estimated cond(M) [left axis] and GMRES iterations [right axis] vs tol
+figure;
+yyaxis left;
+loglog(tol_values, cond_M_vals, '-o', 'LineWidth', 1.5, 'Color', [0.2 0.4 0.8]);
+ylabel('Estimated cond(M)');
+set(gca, 'YScale', 'log');
+
+yyaxis right;
+semilogx(tol_values, gmres_iters, '-d', 'LineWidth', 1.5, 'Color', [0.8 0.2 0.2]);
+ylabel('GMRES iterations');
+
+xlabel('tol');
+title('Condition number of M and GMRES iterations vs tolerance');
+legend('condest(M)', 'GMRES iterations', 'Location', 'best');
+grid on;
+
+% Plot 2: number of nonzeros in M vs tol
+figure;
+loglog(tol_values, nnz_M_vals, '-s', 'LineWidth', 1.5, 'Color', [0.5 0.2 0.7]);
+xlabel('tol');
+ylabel('nnz(M)');
+title('Number of nonzeros in M vs tolerance');
+grid on;
+
+fprintf('m DOFs     : %10d\n', num_m_dofs);
+fprintf('p DOFs     : %10d\n', num_p_dofs);
 % Note: preconditioner implemented in separate file `block_prec.m` in the same folder
 % to remain compatible with MATLAB versions that don't allow local functions in scripts.
