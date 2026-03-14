@@ -10,11 +10,11 @@ addpath(genpath('FACTORIZE'))
 %% Step 1: build 2D meshes
 
 % (Option 1): SPE11B Model (read CSV geometry files)
-[cell2D, face2D, V2, cells2D] = buildMeshFromCSV('csv_files/points_spe11b.csv', 'csv_files/polygons_spe11b.csv');
-H = 100.0; % extrusion height
-Lx = 8400;
-Ly = 1200.02;
-Lz = 100.0;
+% [cell2D, face2D, V2, cells2D] = buildMeshFromCSV('csv_files/points_spe11b.csv', 'csv_files/polygons_spe11b.csv');
+% H = 100.0; % extrusion height
+% Lx = 8400;
+% Ly = 1200.02;
+% Lz = 100.0;
 
 % (Option 2): Artificial distorted structured mesh for TPFA/MFD tests
 % H = 1.0;
@@ -25,9 +25,18 @@ Lz = 100.0;
 % nx = alpha*30;
 % ny = alpha*30;
 % [cell2D, face2D, V2, cells2D] = buildTestMesh(nx, ny, Lx, Ly);
+% 
+% %% Step 2: Extrude 2D mesh along vertical direction (H = height) to get 3D mesh
+% [cell_struct, face_struct, V3, cells3D] = extend2Dto3D(V2, cells2D, H);
 
-%% Step 2: Extrude 2D mesh along vertical direction (H = height) to get 3D mesh
-[cell_struct, face_struct, V3, cells3D] = extend2Dto3D(V2, cells2D, H);
+% (Option 3): Multi layer 3D testing (no need extrusion, but need MRST)
+setupMRSTAuto();
+H = 1.0;
+Lx = 10.0;
+Ly = 10.0;
+Lz = H;
+G3 = buildMRSTMesh(Lx, Ly, H);
+[cell_struct, face_struct, V3, cells3D] = MRSTGridConvert(G3);
 
 %% Step 3: Assign physical values and get projection of analytical solution (flux and pressure)
 ip_type = 'tpfa';
@@ -407,3 +416,15 @@ fprintf('m DOFs     : %10d\n', num_m_dofs);
 fprintf('p DOFs     : %10d\n', num_p_dofs);
 % Note: preconditioner implemented in separate file `block_prec.m` in the same folder
 % to remain compatible with MATLAB versions that don't allow local functions in scripts.
+
+function y = block_prec(r, F_mm, A_pm, F_S, num_m_dofs)
+
+    r1 = r(1:num_m_dofs);
+    r2 = r(num_m_dofs+1:end);
+    
+    y1 = F_mm \ r1;
+    y2 = F_S \ (r2 - A_pm*y1);
+    
+    y = [y1; y2];
+
+end
