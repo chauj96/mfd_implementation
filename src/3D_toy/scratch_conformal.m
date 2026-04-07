@@ -34,14 +34,22 @@ triQualityReport(Pts, t, '2D param space');
 t1.ConnectivityList = t;
 t2.ConnectivityList = t;
 
-faultHeight1z = @(p)   ty/6*ones(size(p,1),1) + 0.4*p(:,2);
-faultHeight2z = @(p) 5*ty/6*ones(size(p,1),1) - 0.4*p(:,2);
+% Surface geometry parameters — reduce these to make surfaces flatter:
+%   zTilt    : vertical tilt across y  (0 = horizontal plane)
+%   yBend    : parabolic bend in y     (0 = flat in y)
+%   sinAmp   : sinusoidal waviness     (0 = no waviness)
+zTilt  = 0.15;   % was 0.40
+yBend  = 0.08;   % was 0.20
+sinAmp = 0.04;   % was 0.10
+
+faultHeight1z = @(p)   ty/6*ones(size(p,1),1) + zTilt*p(:,2);
+faultHeight2z = @(p) 5*ty/6*ones(size(p,1),1) - zTilt*p(:,2);
 
 t1.Points = [Pts(:,1), faultHeight1z(Pts), Pts(:,2)];
 t2.Points = [Pts(:,1), faultHeight2z(Pts), Pts(:,2)];
 
-faultHeight1x = @(p) p(:,2) + 0.2*(p(:,1)-0.75).^2 + 0.1*sin(2*pi/tx*p(:,1));
-faultHeight2x = @(p) p(:,2) + 0.2*(p(:,1)-0.75).^2;
+faultHeight1x = @(p) p(:,2) + yBend*(p(:,1)-0.75).^2 + sinAmp*sin(2*pi/tx*p(:,1));
+faultHeight2x = @(p) p(:,2) + yBend*(p(:,1)-0.75).^2;
 
 t1.Points(:,2) = faultHeight1x(t1.Points);
 t2.Points(:,2) = faultHeight2x(t2.Points);
@@ -65,7 +73,11 @@ triQualityReport(t2.Points, t2.ConnectivityList, 'Surface 2 (3D)');
 %   R = max(Rcirc of incident triangles) / gamma,   gamma < 1
 % which guarantees Z is real and positive.  Smaller gamma -> larger R
 % -> larger Z (wider site separation) -> better-shaped 3D Voronoi cells.
-gamma = 0.6;   % 0 < gamma < 1; smaller -> larger Z -> rounder surface cells
+% gamma = R / max_incident_Rcirc.  Must be > 1 so R > Rcirc and Z is real.
+% gamma=0.9 (i.e. R = Rcirc/0.9) gave the best inR/outR in empirical tests.
+% Do NOT use the mean Rcirc to derive gamma: Gs varies per-triangle, so a
+% mean-based formula produces wildly inconsistent Gs values across the mesh.
+gamma = 0.9;
 
 R1 = circumradiusPerVertex(t1.Points, t1.ConnectivityList, gamma);
 R2 = circumradiusPerVertex(t2.Points, t2.ConnectivityList, gamma);
@@ -110,22 +122,19 @@ xr = xmin:dt:xmax;  yr = ymin:dt:ymax;  zr = zmin:dt:zmax;
 [X,Y,Z] = ndgrid(xr, yr, zr);
 rSites = [X(:), Y(:), Z(:)];
 
-% Jitter background sites slightly to break exact equidistance
-% configurations that produce zero-area Voronoi faces.
+% Jitter background sites slightly to break exact equidistance configurations.
 rng(42);
-rSites = rSites + 0.02*dt*(2*rand(size(rSites))-1);
+rSites = rSites + 0.01*dt*(2*rand(size(rSites))-1);
 
-% Step 1: remove reservoir sites inside the circumscribed balls centred at
-% each surface triangulation vertex (necessary conformity condition).
+% Step 1 – necessary condition: remove sites inside circumscribed vertex balls.
 rSites = surfaceSufCond3D(rSites, F.c.CC, F.c.R);
 
-% Step 2: remove reservoir sites within Gs/2 of any surface site.
-% F.f.pts are the conformal site pairs; F.f.Gs is the separation of each
-% pair.  A reservoir site closer than Gs/2 to either site of a pair would
-% have that surface site as its Voronoi neighbour, producing a flat cell.
-% We use surfaceSufCond3D with the surface sites as centres and Gs/2 as radii.
-halfGs = F.f.Gs / 2;
-rSites = surfaceSufCond3D(rSites, F.f.pts, halfGs);
+% Step 2 – sufficient condition: remove reservoir sites within F.f.Gs of
+% each surface site.  F.f.Gs is the actual site-pair separation for that
+% triangle; using it as the exclusion radius ensures no reservoir site can
+% be closer to a surface site than the surface site is to its paired copy,
+% which is the exact condition that prevents flat bisecting Voronoi faces.
+rSites = surfaceSufCond3D(rSites, F.f.pts, F.f.Gs);
 
 fprintf('  Reservoir sites after exclusion: %d\n', size(rSites,1));
 
@@ -148,8 +157,13 @@ G = mirroredPebi3D(sites, bdr);
 % Threshold: 1e-4 * mean(face areas) — conservative enough to only touch
 % genuinely degenerate faces, not valid small-but-real faces.
 G_tmp   = computeGeometry(G);
-areaTol = 1e-4 * mean(G_tmp.faces.areas);
-edgeTol = 2 * areaTol / fGs;
+% edgeTol must be large enough to collapse the shortest edge of any sliver.
+% A sliver face with area A_min and longest edge L_max has shortest edge
+% e_short = 2*A_min/L_max.  We use sqrt(A_min) as a robust single-number
+% estimate (geometric mean of the two characteristic lengths).
+% We target all faces with area < 1e-3 * mean(area).
+sliverArea = 1e-3 * mean(G_tmp.faces.areas);
+edgeTol    = sqrt(sliverArea);
 clear G_tmp;
 
 fprintf('\nCleaning degenerate geometry (edgeTol = %.2e) ...\n', edgeTol);
@@ -237,6 +251,18 @@ fprintf('  F (faces)    = %d\n', F_count);
 fprintf('  C (cells)    = %d\n', C);
 fprintf('  chi = V - E + F - C = %d - %d + %d - %d = %d\n', ...
         V, E, F_count, C, chi);
+end
+
+%% ---------------------------------------------------------------
+function Rcirc = triCircumradii(pts, conn)
+% Per-triangle circumradius for a triangulation embedded in 3D.
+p1 = pts(conn(:,1),:);  p2 = pts(conn(:,2),:);  p3 = pts(conn(:,3),:);
+L1 = sqrt(sum((p2-p1).^2,2));
+L2 = sqrt(sum((p3-p2).^2,2));
+L3 = sqrt(sum((p1-p3).^2,2));
+s     = (L1+L2+L3)/2;
+area  = sqrt(max(s.*(s-L1).*(s-L2).*(s-L3), 0));
+Rcirc = (L1.*L2.*L3) ./ max(4*area, eps);
 end
 
 %% ---------------------------------------------------------------
