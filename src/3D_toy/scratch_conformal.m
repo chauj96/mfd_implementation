@@ -65,7 +65,7 @@ triQualityReport(t2.Points, t2.ConnectivityList, 'Surface 2 (3D)');
 %   R = max(Rcirc of incident triangles) / gamma,   gamma < 1
 % which guarantees Z is real and positive.  Smaller gamma -> larger R
 % -> larger Z (wider site separation) -> better-shaped 3D Voronoi cells.
-gamma = 0.9;   % 0 < gamma < 1; smaller = safer/wider, larger = tighter
+gamma = 0.6;   % 0 < gamma < 1; smaller -> larger Z -> rounder surface cells
 
 R1 = circumradiusPerVertex(t1.Points, t1.ConnectivityList, gamma);
 R2 = circumradiusPerVertex(t2.Points, t2.ConnectivityList, gamma);
@@ -81,10 +81,6 @@ rho2 = @(p) R2;
 F = surfaceSites3D({t1, t2}, {rho1, rho2});
 
 %% Hard filter: remove any complex, NaN, or Inf sites produced by ballInt
-% when R < Rcirc for a triangle (sqrt of a negative number).
-% This is a safety net; circumradiusPerVertex should prevent most cases,
-% but boundary vertices shared between triangles of very different sizes
-% can still trigger it.
 isValid = all(isreal(F.f.pts), 2) & all(isfinite(F.f.pts), 2);
 nBad = sum(~isValid);
 if nBad > 0
@@ -94,6 +90,12 @@ F.f.pts = F.f.pts(isValid, :);
 F.f.Gs  = F.f.Gs(isValid);
 F.f.pri = F.f.pri(isValid);
 F.f.l   = F.f.l(isValid);
+
+fprintf('  Surface site pairs: %d\n', size(F.f.pts,1));
+fprintf('  Site-pair separation Gs  min/mean/max: %.4f / %.4f / %.4f\n', ...
+        min(F.f.Gs), mean(F.f.Gs), max(F.f.Gs));
+fprintf('  Gs / fGs ratio           min/mean/max: %.3f / %.3f / %.3f\n', ...
+        min(F.f.Gs)/fGs, mean(F.f.Gs)/fGs, max(F.f.Gs)/fGs);
 
 %% Expand boundary slightly for robustness
 bdr = 1.01 * bdr;
@@ -108,10 +110,24 @@ xr = xmin:dt:xmax;  yr = ymin:dt:ymax;  zr = zmin:dt:zmax;
 [X,Y,Z] = ndgrid(xr, yr, zr);
 rSites = [X(:), Y(:), Z(:)];
 
-% Remove reservoir sites that are too close to any surface site
-% (sufficient conformity condition: no site may lie inside the balls
-%  centred at the surface triangulation vertices)
+% Jitter background sites slightly to break exact equidistance
+% configurations that produce zero-area Voronoi faces.
+rng(42);
+rSites = rSites + 0.02*dt*(2*rand(size(rSites))-1);
+
+% Step 1: remove reservoir sites inside the circumscribed balls centred at
+% each surface triangulation vertex (necessary conformity condition).
 rSites = surfaceSufCond3D(rSites, F.c.CC, F.c.R);
+
+% Step 2: remove reservoir sites within Gs/2 of any surface site.
+% F.f.pts are the conformal site pairs; F.f.Gs is the separation of each
+% pair.  A reservoir site closer than Gs/2 to either site of a pair would
+% have that surface site as its Voronoi neighbour, producing a flat cell.
+% We use surfaceSufCond3D with the surface sites as centres and Gs/2 as radii.
+halfGs = F.f.Gs / 2;
+rSites = surfaceSufCond3D(rSites, F.f.pts, halfGs);
+
+fprintf('  Reservoir sites after exclusion: %d\n', size(rSites,1));
 
 %% Merge surface sites and reservoir sites, then build grid
 sites = [F.f.pts; rSites];
@@ -129,12 +145,10 @@ G = mirroredPebi3D(sites, bdr);
 % < 3 nodes → removeCollapsedFaces removes it → removeCollapsedCells
 % merges the two formerly-separated cells.
 %
-% We compute the threshold from the actual face-area distribution:
-%   edgeTol = 2 * areaTol / fGs,   areaTol = 1e-4 * mean(face areas)
-% This is strictly below the shortest legitimate edge (~fGs/2 ≈ 0.025),
-% so no valid geometry is touched.
-G_tmp  = computeGeometry(G);
-areaTol = 1e-1 * mean(G_tmp.faces.areas);
+% Threshold: 1e-4 * mean(face areas) — conservative enough to only touch
+% genuinely degenerate faces, not valid small-but-real faces.
+G_tmp   = computeGeometry(G);
+areaTol = 1e-4 * mean(G_tmp.faces.areas);
 edgeTol = 2 * areaTol / fGs;
 clear G_tmp;
 
