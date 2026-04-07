@@ -27,6 +27,10 @@ fd = @(p) drectangle(p, rectangle1(1),rectangle1(2), rectangle1(3), rectangle1(4
 
 [Pts,t] = distmesh2d(fd, hd, fGs, rectangle1, fixedPts, false);
 
+%% --- Diagnostic: 2D parameter-space triangle quality ---
+fprintf('\n=== Surface triangulation quality (2D parameter space) ===\n');
+triQualityReport(Pts, t, '2D param space');
+
 t1.ConnectivityList = t;
 t2.ConnectivityList = t;
 
@@ -42,11 +46,54 @@ faultHeight2x = @(p) p(:,2) + 0.2*(p(:,1)-0.75).^2;
 t1.Points(:,2) = faultHeight1x(t1.Points);
 t2.Points(:,2) = faultHeight2x(t2.Points);
 
+%% --- Diagnostic: 3D surface quality for both surfaces ---
+fprintf('\n=== Surface 1 triangle quality (3D) ===\n');
+triQualityReport(t1.Points, t1.ConnectivityList, 'Surface 1 (3D)');
+
+fprintf('\n=== Surface 2 triangle quality (3D) ===\n');
+triQualityReport(t2.Points, t2.ConnectivityList, 'Surface 2 (3D)');
+
 %% Generate conformal surface sites using the UPR pipeline
 % surfaceSites3D places equidistant site pairs on both sides of each
 % triangulated surface so that the Voronoi faces align with the surfaces.
-R = @(p) fGs * ones(size(p,1), 1);
-F = surfaceSites3D({t1, t2}, {R, R});
+%
+% Radius strategy: per-vertex R = max_incident_circumradius / gamma.
+%
+% ballInt places each site pair at the circumcenter of its triangle,
+% offset by Z = sqrt(R^2 - Rcirc^2) along the surface normal.
+% We need R > Rcirc for every incident triangle, so we set
+%   R = max(Rcirc of incident triangles) / gamma,   gamma < 1
+% which guarantees Z is real and positive.  Smaller gamma -> larger R
+% -> larger Z (wider site separation) -> better-shaped 3D Voronoi cells.
+gamma = 0.9;   % 0 < gamma < 1; smaller = safer/wider, larger = tighter
+
+R1 = circumradiusPerVertex(t1.Points, t1.ConnectivityList, gamma);
+R2 = circumradiusPerVertex(t2.Points, t2.ConnectivityList, gamma);
+
+fprintf('\n=== Circumradius-based ball radius (Surface 1) ===\n');
+fprintf('  R min/mean/max: %.5f / %.5f / %.5f\n', min(R1), mean(R1), max(R1));
+fprintf('=== Circumradius-based ball radius (Surface 2) ===\n');
+fprintf('  R min/mean/max: %.5f / %.5f / %.5f\n', min(R2), mean(R2), max(R2));
+
+rho1 = @(p) R1;
+rho2 = @(p) R2;
+
+F = surfaceSites3D({t1, t2}, {rho1, rho2});
+
+%% Hard filter: remove any complex, NaN, or Inf sites produced by ballInt
+% when R < Rcirc for a triangle (sqrt of a negative number).
+% This is a safety net; circumradiusPerVertex should prevent most cases,
+% but boundary vertices shared between triangles of very different sizes
+% can still trigger it.
+isValid = all(isreal(F.f.pts), 2) & all(isfinite(F.f.pts), 2);
+nBad = sum(~isValid);
+if nBad > 0
+    fprintf('\n  WARNING: removed %d complex/NaN surface sites from ballInt.\n', nBad);
+end
+F.f.pts = F.f.pts(isValid, :);
+F.f.Gs  = F.f.Gs(isValid);
+F.f.pri = F.f.pri(isValid);
+F.f.l   = F.f.l(isValid);
 
 %% Expand boundary slightly for robustness
 bdr = 1.01 * bdr;
@@ -72,12 +119,41 @@ sites = [F.f.pts; rSites];
 fprintf('Total number of sites = %d\n', size(sites,1));
 
 G = mirroredPebi3D(sites, bdr);
+
+%% Clean up degenerate geometry using removeShortEdges (public API)
+%
+% Sliver faces have area << mean but topologically valid nodes.
+% Their shortest edge has length ≈ 2*area / longest_edge ≈ 2*area / fGs.
+% Setting edgeTol just above that length causes removeShortEdges to merge
+% the two nodes of that short edge, which collapses the sliver face to
+% < 3 nodes → removeCollapsedFaces removes it → removeCollapsedCells
+% merges the two formerly-separated cells.
+%
+% We compute the threshold from the actual face-area distribution:
+%   edgeTol = 2 * areaTol / fGs,   areaTol = 1e-4 * mean(face areas)
+% This is strictly below the shortest legitimate edge (~fGs/2 ≈ 0.025),
+% so no valid geometry is touched.
+G_tmp  = computeGeometry(G);
+areaTol = 1e-1 * mean(G_tmp.faces.areas);
+edgeTol = 2 * areaTol / fGs;
+clear G_tmp;
+
+fprintf('\nCleaning degenerate geometry (edgeTol = %.2e) ...\n', edgeTol);
+nC0 = G.cells.num; nF0 = G.faces.num; nN0 = G.nodes.num;
+[G, ~] = removeShortEdges(G, edgeTol);
+fprintf('  Removed: %d cells,  %d faces,  %d nodes\n', ...
+    nC0-G.cells.num, nF0-G.faces.num, nN0-G.nodes.num);
+
+
 G = computeGeometry(G);
 
 fprintf('Mesh built:\n');
 fprintf('  #cells = %d\n', G.cells.num);
 fprintf('  #faces = %d\n', G.faces.num);
 fprintf('  #nodes = %d\n', G.nodes.num);
+
+%% --- Diagnostic: 3D Voronoi cell quality ---
+cellQualityReport(G);
 
 %% Classify cells by position relative to the two surfaces
 c  = G.cells.centroids;
@@ -147,4 +223,85 @@ fprintf('  F (faces)    = %d\n', F_count);
 fprintf('  C (cells)    = %d\n', C);
 fprintf('  chi = V - E + F - C = %d - %d + %d - %d = %d\n', ...
         V, E, F_count, C, chi);
+end
+
+%% ---------------------------------------------------------------
+function R = circumradiusPerVertex(pts, conn, gamma)
+% Per-vertex ball radius = max_incident_circumradius / gamma.
+% ballInt computes Z = sqrt(R^2 - Rcirc^2); we need R > Rcirc for every
+% incident triangle, so R = max(Rcirc) / gamma with gamma < 1.
+nPts = size(pts, 1);
+p1 = pts(conn(:,1),:);  p2 = pts(conn(:,2),:);  p3 = pts(conn(:,3),:);
+L1 = sqrt(sum((p2-p1).^2,2));
+L2 = sqrt(sum((p3-p2).^2,2));
+L3 = sqrt(sum((p1-p3).^2,2));
+s     = (L1+L2+L3)/2;
+area  = sqrt(max(s.*(s-L1).*(s-L2).*(s-L3), 0));
+Rcirc = (L1.*L2.*L3) ./ max(4*area, eps);
+verts = [conn(:,1); conn(:,2); conn(:,3)];
+rvals = [Rcirc;     Rcirc;     Rcirc    ];
+R = accumarray(verts, rvals, [nPts,1], @max);
+R = R / gamma;
+end
+
+%% ---------------------------------------------------------------
+function cellQualityReport(G)
+% Report quality of 3D Voronoi cells: insphere/circumsphere ratio,
+% volume distribution, and face area distribution.
+cc = G.cells.centroids;
+nC = G.cells.num;
+fc       = G.faces.centroids;
+cFacePos = G.cells.facePos;
+inR  = zeros(nC,1);
+outR = zeros(nC,1);
+for k = 1:nC
+    fi      = G.cells.faces(cFacePos(k):cFacePos(k+1)-1);
+    d       = sqrt(sum((fc(fi,:) - cc(k,:)).^2, 2));
+    inR(k)  = min(d);
+    outR(k) = max(d);
+end
+ratio = inR ./ max(outR, eps);
+vol   = G.cells.volumes;
+area  = G.faces.areas;
+fprintf('\n=== 3D Voronoi cell quality ===\n');
+fprintf('  Cell volume  min/mean/max : %.2e / %.2e / %.2e\n', min(vol),mean(vol),max(vol));
+fprintf('  Volume CoV (std/mean)     : %.3f\n', std(vol)/mean(vol));
+fprintf('  inR/outR  min/mean/max    : %.3f / %.3f / %.3f\n', min(ratio),mean(ratio),max(ratio));
+fprintf('  Frac. inR/outR < 0.10     : %.1f%%  (flat/sliver cells)\n', 100*mean(ratio<0.10));
+fprintf('  Frac. inR/outR < 0.20     : %.1f%%\n', 100*mean(ratio<0.20));
+fprintf('  Frac. vol < 0.01*mean_vol : %.1f%%  (tiny cells)\n', 100*mean(vol<0.01*mean(vol)));
+fprintf('  Face area  min/mean/max   : %.2e / %.2e / %.2e\n', min(area),mean(area),max(area));
+fprintf('  Frac. face area < 1e-10   : %.2f%%  (degenerate faces)\n', 100*mean(area<1e-10));
+fprintf('  Frac. face area < 1e-6    : %.2f%%\n', 100*mean(area<1e-6));
+end
+
+%% ---------------------------------------------------------------
+function triQualityReport(pts, conn, label)
+% Triangle quality: edge lengths, aspect ratio, minimum angle.
+nT = size(conn,1);
+p1 = pts(conn(:,1),:);  p2 = pts(conn(:,2),:);  p3 = pts(conn(:,3),:);
+L1 = sqrt(sum((p2-p1).^2,2));
+L2 = sqrt(sum((p3-p2).^2,2));
+L3 = sqrt(sum((p1-p3).^2,2));
+allL = [L1;L2;L3];
+s    = (L1+L2+L3)/2;
+area = sqrt(max(s.*(s-L1).*(s-L2).*(s-L3), 0));
+R_circ = (L1.*L2.*L3) ./ max(4*area, eps);
+r_in   = area ./ max(s, eps);
+AR     = R_circ ./ max(2*r_in, eps);
+cosA = (L2.^2+L3.^2-L1.^2) ./ max(2*L2.*L3, eps);
+cosB = (L1.^2+L3.^2-L2.^2) ./ max(2*L1.*L3, eps);
+cosC = (L1.^2+L2.^2-L3.^2) ./ max(2*L1.*L2, eps);
+minAng = min([acosd(min(max(cosA,-1),1)), ...
+              acosd(min(max(cosB,-1),1)), ...
+              acosd(min(max(cosC,-1),1))], [], 2);
+nDegen = sum(area < 1e-14);
+fprintf('[%s]\n', label);
+fprintf('  #triangles          : %d  (degenerate: %d)\n', nT, nDegen);
+fprintf('  Edge length  min/mean/max: %.4f / %.4f / %.4f\n', min(allL),mean(allL),max(allL));
+fprintf('  Aspect ratio min/mean/max: %.3f / %.3f / %.3f\n', min(AR),mean(AR),max(AR));
+fprintf('  Min angle [deg] min/mean  : %.2f / %.2f\n', min(minAng),mean(minAng));
+fprintf('  Frac. AR > 3             : %.1f%%\n', 100*mean(AR>3));
+fprintf('  Frac. min-angle < 20 deg : %.1f%%\n', 100*mean(minAng<20));
+fprintf('  Frac. min-angle < 10 deg : %.1f%%\n', 100*mean(minAng<10));
 end
