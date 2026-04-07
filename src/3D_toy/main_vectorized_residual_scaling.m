@@ -21,25 +21,33 @@ addpath(genpath('FACTORIZE'))
 % Lx = 1.0;
 % Ly = 1.0;
 % Lz = 1.0;
-% alpha = 3;
-% nx = alpha*30;
-% ny = alpha*30;
+% alpha = 5;
+% nx = alpha*20;
+% ny = alpha*20;
 % [cell2D, face2D, V2, cells2D] = buildTestMesh(nx, ny, Lx, Ly);
-% 
+
 % %% Step 2: Extrude 2D mesh along vertical direction (H = height) to get 3D mesh
 % [cell_struct, face_struct, V3, cells3D] = extend2Dto3D(V2, cells2D, H);
 
 % (Option 3): Multi layer 3D testing (no need extrusion, but need MRST)
 setupMRSTAuto();
-H = 1.0;
-Lx = 10.0;
-Ly = 10.0;
-Lz = H;
-G3 = buildMRSTMesh(Lx, Ly, H);
-[cell_struct, face_struct, V3, cells3D] = MRSTGridConvert(G3);
+% H = 0.4;
+% Lx = 1.0;
+% Ly = 1.0;
+% Lz = H;
+% G3 = buildMRSTMesh(Lx, Ly, H);
+% [cell_struct, face_struct, V3, cells3D] = MRSTGridConvert(G3);
+
+G = scratch_conformal();
+[cell_struct, face_struct, V3, cells3D] = MRSTGridConvert(G);
+Lx = 1;
+Ly = 1;
+Lz = .4;
+
 
 %% Step 3: Assign physical values and get projection of analytical solution (flux and pressure)
 ip_type = 'tpfa';
+solver_type = 'iterative';
 %tol = 1e-4; % Tolerance for residual-based cell classification
 % run for a vector of tolerances: 1e-1 .. 1e-9
 tol_values = 10.^-(0:9); % [1e-0,1e-1, 1e-2, ..., 1e-9]
@@ -219,7 +227,7 @@ for it = 1:n_tol
  T = buildTmatrix(cell_struct);
 
  A_full = [M, -B';
-           B, (1/dt)*T];
+           B, (1/dt)*T*0];
 
 
  matrix = A_full;
@@ -255,9 +263,6 @@ for it = 1:n_tol
  fprintf('enforcePrescribedDOFsStrong time: %.6f s\n', toc(t));
 
 
-
-
- tic;
  num_m_dofs = length(face_struct);
  num_p_dofs = length(cell_struct);
 
@@ -281,7 +286,13 @@ for it = 1:n_tol
  t_setup = toc;
 
  t = tic;
- [sol3, flag, total_iters, error] = gmres_r(@(v) matrix * v, -RHS, eps_solver, gmres_niter, 1, @(v) block_prec(v, F_mm, A_pm, F_S, num_m_dofs), 0*RHS);
+ if strcmp(solver_type,'direct')
+    sol3 = matrix \ RHS;
+    total_iters = 0;
+ else
+    [sol3, flag, total_iters, error] = gmres_r(@(v) matrix * v, -RHS, eps_solver, gmres_niter, 1, @(v) block_prec(v, F_mm, A_pm, F_S, num_m_dofs), 0*RHS);
+ end
+
  t_solve = toc(t);
  fprintf('solve linear system time: %.6f s\n', t_solve);
 
@@ -334,6 +345,8 @@ for it = 1:n_tol
  fprintf('Rel error   : %12.3e\n', relErr);
  fprintf('Setup time  : %12.2f s\n', t_setup);
  fprintf('Solve time  : %12.2f s\n', t_solve);
+
+ 
 
 
 end % for it
@@ -416,6 +429,16 @@ fprintf('m DOFs     : %10d\n', num_m_dofs);
 fprintf('p DOFs     : %10d\n', num_p_dofs);
 % Note: preconditioner implemented in separate file `block_prec.m` in the same folder
 % to remain compatible with MATLAB versions that don't allow local functions in scripts.
+
+
+
+
+
+
+
+
+
+
 
 function y = block_prec(r, F_mm, A_pm, F_S, num_m_dofs)
 
