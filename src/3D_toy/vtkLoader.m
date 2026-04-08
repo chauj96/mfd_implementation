@@ -10,7 +10,7 @@ function [cell_struct, face_struct, V3, cells3D, attribute] = vtkLoader(filename
 %     - VTK type 42  (polyhedra,    arbitrary faces via face_connectivity etc.)
 %     - mixed meshes combining any of the above
 %     - binary format with vtkZLibDataCompressor
-%     - header_type="UInt32"  (4-byte block headers)
+%     - header_type="UInt32" (4-byte block headers) and "UInt64" (8-byte)
 
     %% ------------------------------------------------------------------ %%
     %% 1.  Read XML header & locate DataArray blocks
@@ -20,6 +20,14 @@ function [cell_struct, face_struct, V3, cells3D, attribute] = vtkLoader(filename
     raw = fread(fid, Inf, '*uint8');
     fclose(fid);
     xml_str = char(raw(:)');
+
+    % Parse header_type (UInt32 = 4-byte block-size words, UInt64 = 8-byte)
+    hdr_type_tok = regexpi(xml_str, 'header_type\s*=\s*[''"]([^''"]*)[''""]', 'tokens', 'once');
+    if ~isempty(hdr_type_tok) && strcmpi(hdr_type_tok{1}, 'UInt64')
+        hdr_word_bytes = 8;
+    else
+        hdr_word_bytes = 4;  % default / UInt32
+    end
 
     piece_tok = regexpi(xml_str, '<Piece\s+([^>]*)>', 'tokens', 'once');
     if isempty(piece_tok), error('vtkLoader: no <Piece> tag found'); end
@@ -33,28 +41,45 @@ function [cell_struct, face_struct, V3, cells3D, attribute] = vtkLoader(filename
     %% ------------------------------------------------------------------ %%
     [da_tags, da_starts, da_ends] = findDataArrays(xml_str);
 
-    pts_data  = getDataByName(da_tags, da_starts, da_ends, xml_str, 'Points');
-    conn_data = getDataByName(da_tags, da_starts, da_ends, xml_str, 'connectivity');
-    off_data  = getDataByName(da_tags, da_starts, da_ends, xml_str, 'offsets');
-    typ_data  = getDataByName(da_tags, da_starts, da_ends, xml_str, 'types');
+    pts_data  = getDataByName(da_tags, da_starts, da_ends, xml_str, 'Points',              hdr_word_bytes);
+    conn_data = getDataByName(da_tags, da_starts, da_ends, xml_str, 'connectivity',        hdr_word_bytes);
+    off_data  = getDataByName(da_tags, da_starts, da_ends, xml_str, 'offsets',             hdr_word_bytes);
+    typ_data  = getDataByName(da_tags, da_starts, da_ends, xml_str, 'types',               hdr_word_bytes);
 
     % Polyhedral-specific arrays (may be absent for non-poly meshes)
-    fconn_data  = getDataByName(da_tags, da_starts, da_ends, xml_str, 'face_connectivity');
-    foff_data   = getDataByName(da_tags, da_starts, da_ends, xml_str, 'face_offsets');
-    p2f_data    = getDataByName(da_tags, da_starts, da_ends, xml_str, 'polyhedron_to_faces');
-    poff_data   = getDataByName(da_tags, da_starts, da_ends, xml_str, 'polyhedron_offsets');
+    fconn_data  = getDataByName(da_tags, da_starts, da_ends, xml_str, 'face_connectivity', hdr_word_bytes);
+    foff_data   = getDataByName(da_tags, da_starts, da_ends, xml_str, 'face_offsets',      hdr_word_bytes);
+    p2f_data    = getDataByName(da_tags, da_starts, da_ends, xml_str, 'polyhedron_to_faces', hdr_word_bytes);
+    poff_data   = getDataByName(da_tags, da_starts, da_ends, xml_str, 'polyhedron_offsets', hdr_word_bytes);
 
     % Cell-data attribute (try common names)
-    attr_data = getDataByName(da_tags, da_starts, da_ends, xml_str, 'attribute');
+    attr_data = getDataByName(da_tags, da_starts, da_ends, xml_str, 'attribute',           hdr_word_bytes);
     if isempty(attr_data)
-        attr_data = getDataByName(da_tags, da_starts, da_ends, xml_str, 'CellEntityIds');
+        attr_data = getDataByName(da_tags, da_starts, da_ends, xml_str, 'CellEntityIds',   hdr_word_bytes);
     end
 
     %% ------------------------------------------------------------------ %%
     %% 3.  Cast raw bytes to typed arrays
+    %%     Use the 'type' attribute from the DataArray XML tag to pick
+    %%     the correct MATLAB typecast target.
     %% ------------------------------------------------------------------ %%
-    V3   = double(reshape(typecast(pts_data, 'single'), 3, [])');   % nPts x 3
-    offs = double(typecast(off_data, 'int64'));                      % nCells x 1
+
+    % Points: Float32 or Float64
+    pts_type = getTypeByName(da_tags, 'Points');
+    if strcmpi(pts_type, 'Float64')
+        V3 = double(reshape(typecast(pts_data, 'double'), 3, [])');
+    else
+        V3 = double(reshape(typecast(pts_data, 'single'), 3, [])');
+    end
+
+    % offsets: Int32 or Int64
+    off_type = getTypeByName(da_tags, 'offsets');
+    if strcmpi(off_type, 'Int32')
+        offs = double(typecast(off_data, 'int32'));
+    else
+        offs = double(typecast(off_data, 'int64'));
+    end
+
     typs = typecast(typ_data, 'uint8');                              % nCells x 1
 
     if ~isempty(attr_data)
@@ -68,8 +93,13 @@ function [cell_struct, face_struct, V3, cells3D, attribute] = vtkLoader(filename
         attribute = [];
     end
 
-    % Standard connectivity (used for non-type-42 cells)
-    conn = double(reshape(typecast(conn_data, 'int64'), 1, [])) + 1; % 1-based
+    % Standard connectivity: Int32 or Int64
+    conn_type = getTypeByName(da_tags, 'connectivity');
+    if strcmpi(conn_type, 'Int32')
+        conn = double(reshape(typecast(conn_data, 'int32'), 1, [])) + 1; % 1-based
+    else
+        conn = double(reshape(typecast(conn_data, 'int64'), 1, [])) + 1; % 1-based
+    end
 
     % Check for type 42
     hasPolyhedra = any(typs == 42);
@@ -100,10 +130,33 @@ function [cell_struct, face_struct, V3, cells3D, attribute] = vtkLoader(filename
             error('vtkLoader: type-42 cells detected but face_connectivity/face_offsets/polyhedron_to_faces/polyhedron_offsets arrays are missing');
         end
 
-        fc_nodes = double(reshape(typecast(fconn_data, 'int64'), 1, [])) + 1; % 1-based
-        fc_offs  = double(typecast(foff_data,  'int64'));   % nPolyFaces x 1
-        p2f_flat = double(typecast(p2f_data,   'int64')) + 1; % 1-based face indices
-        p_offs   = double(typecast(poff_data,  'int64'));   % nPolyCells x 1
+        fconn_type = getTypeByName(da_tags, 'face_connectivity');
+        if strcmpi(fconn_type, 'Int32')
+            fc_nodes = double(reshape(typecast(fconn_data, 'int32'), 1, [])) + 1;
+        else
+            fc_nodes = double(reshape(typecast(fconn_data, 'int64'), 1, [])) + 1;
+        end
+
+        foff_type = getTypeByName(da_tags, 'face_offsets');
+        if strcmpi(foff_type, 'Int32')
+            fc_offs = double(typecast(foff_data, 'int32'));
+        else
+            fc_offs = double(typecast(foff_data, 'int64'));
+        end
+
+        p2f_type = getTypeByName(da_tags, 'polyhedron_to_faces');
+        if strcmpi(p2f_type, 'Int32')
+            p2f_flat = double(typecast(p2f_data, 'int32')) + 1;
+        else
+            p2f_flat = double(typecast(p2f_data, 'int64')) + 1;
+        end
+
+        poff_type = getTypeByName(da_tags, 'polyhedron_offsets');
+        if strcmpi(poff_type, 'Int32')
+            p_offs = double(typecast(poff_data, 'int32'));
+        else
+            p_offs = double(typecast(poff_data, 'int64'));
+        end
 
         nPolyFaces = numel(fc_offs);
         poly_face_verts = cell(nPolyFaces, 1);
@@ -259,6 +312,9 @@ function [cell_struct, face_struct, V3, cells3D, attribute] = vtkLoader(filename
 
     %% ------------------------------------------------------------------ %%
     %% 7.  Face geometry
+    %%     Fan-triangulate each polygon from its first vertex.
+    %%     Centroid = area-weighted average of triangle centroids.
+    %%     Normal   = sum of triangle cross-products (area-weighted direction).
     %% ------------------------------------------------------------------ %%
     face_centroid = zeros(nFaces, 3);
     face_normal   = zeros(nFaces, 3);
@@ -267,21 +323,39 @@ function [cell_struct, face_struct, V3, cells3D, attribute] = vtkLoader(filename
     for f = 1:nFaces
         vids = double(face_verts_c{f});
         pts  = V3(vids, :);
-        face_centroid(f,:) = mean(pts, 1);
-        cr_sum = [0 0 0];
-        p0 = pts(1,:);
-        for kv = 2:size(pts,1)-1
-            cr_sum = cr_sum + cross(pts(kv,:) - p0, pts(kv+1,:) - p0);
+        nv   = size(pts, 1);
+        if nv < 3
+            face_centroid(f,:) = mean(pts, 1);
+            continue;
         end
-        area2 = norm(cr_sum);
-        face_area(f) = area2 / 2;
-        if area2 > 0, face_normal(f,:) = cr_sum / area2; end
+        cr_sum  = [0 0 0];
+        xc_sum  = [0 0 0];
+        area_tot = 0;
+        p0 = pts(1,:);
+        for kv = 2:nv-1
+            cr = cross(pts(kv,:) - p0, pts(kv+1,:) - p0);
+            tri_area2 = norm(cr);
+            cr_sum   = cr_sum  + cr;
+            xc_sum   = xc_sum  + tri_area2 * (p0 + pts(kv,:) + pts(kv+1,:));
+            area_tot = area_tot + tri_area2;
+        end
+        total_area = area_tot / 2;
+        face_area(f) = total_area;
+        if area_tot > 0
+            face_normal(f,:)   = cr_sum / norm(cr_sum);   % unit normal
+            face_centroid(f,:) = xc_sum / (3 * area_tot); % area-weighted centroid
+        else
+            face_centroid(f,:) = mean(pts, 1);
+        end
     end
 
     %% ------------------------------------------------------------------ %%
     %% 8.  Cell geometry (centroid & volume)
     %%     Works for any cell type by decomposing faces into tetrahedra
-    %%     from an approximate centroid.
+    %%     from an approximate centroid (vertex mean of the cell).
+    %%
+    %%     V = sum_f sum_tri  dot(a, cross(b,c)) / 6
+    %%     xC = sum_f sum_tri sv * (xc_approx + p0 + pk + pk+1) / 4  / V
     %% ------------------------------------------------------------------ %%
     cell_centroid = zeros(nCells, 3);
     cell_volume   = zeros(nCells, 1);
@@ -307,7 +381,7 @@ function [cell_struct, face_struct, V3, cells3D, attribute] = vtkLoader(filename
             end
         end
 
-        % Approximate centroid
+        % Approximate centroid: average of unique vertex positions
         all_v = unique(cat(2, cell_face_verts{:}));
         xc_approx = mean(V3(all_v, :), 1);
 
@@ -316,17 +390,20 @@ function [cell_struct, face_struct, V3, cells3D, attribute] = vtkLoader(filename
         for lf = 1:numel(cell_face_verts)
             fvids = cell_face_verts{lf};
             fpts  = V3(fvids, :);
-            for kv = 2:size(fpts,1)-1
+            nfv   = size(fpts, 1);
+            for kv = 2:nfv-1
                 a  = fpts(1,:)    - xc_approx;
                 b  = fpts(kv,:)   - xc_approx;
                 c  = fpts(kv+1,:) - xc_approx;
                 sv = dot(a, cross(b, c)) / 6;
                 vol  = vol  + sv;
+                % tet centroid = (xc_approx + p0 + pk + pk+1) / 4
                 xc_w = xc_w + sv * (xc_approx + fpts(1,:) + fpts(kv,:) + fpts(kv+1,:)) / 4;
             end
         end
         cell_volume(ci) = abs(vol);
         if abs(vol) > 0
+            % xc_w / vol  (use signed vol so direction is consistent)
             cell_centroid(ci,:) = xc_w / vol;
         else
             cell_centroid(ci,:) = xc_approx;
@@ -416,7 +493,7 @@ function [da_tags, da_starts, da_ends] = findDataArrays(xml_str)
     end
 end
 
-function raw_bytes = getDataByName(da_tags, da_starts, da_ends, xml_str, name)
+function raw_bytes = getDataByName(da_tags, da_starts, da_ends, xml_str, name, hdr_word_bytes)
     raw_bytes = [];
     for k = 1:numel(da_tags)
         tok = regexpi(da_tags{k}, 'Name\s*=\s*[''"]([^''"]*)[''""]', 'tokens', 'once');
@@ -426,93 +503,222 @@ function raw_bytes = getDataByName(da_tags, da_starts, da_ends, xml_str, name)
         lt_pos = find(b64 == '<', 1);
         if ~isempty(lt_pos), b64 = strtrim(b64(1:lt_pos-1)); end
         if isempty(b64), continue; end
-        raw_bytes = decodeVTKBinary(b64);
+        raw_bytes = decodeVTKBinary(b64, hdr_word_bytes);
         return;
     end
 end
 
-function data = decodeVTKBinary(b64str)
-% Decode VTK binary block: base64 -> zlib decompress (header_type=UInt32)
-    b64str = b64str(b64str ~= sprintf('\n') & b64str ~= sprintf('\r') & ...
-                    b64str ~= ' '           & b64str ~= sprintf('\t'));
+function tp = getTypeByName(da_tags, name)
+% Return the 'type' attribute (e.g. 'Float32', 'Int64') for a DataArray by Name.
+% Returns '' if not found; caller should default to Int64 / Float32.
+    tp = '';
+    for k = 1:numel(da_tags)
+        tok = regexpi(da_tags{k}, 'Name\s*=\s*[''"]([^''"]*)[''""]', 'tokens', 'once');
+        if isempty(tok), continue; end
+        if ~strcmpi(tok{1}, name), continue; end
+        type_tok = regexpi(da_tags{k}, '\btype\s*=\s*[''"]([^''"]*)[''""]', 'tokens', 'once');
+        if ~isempty(type_tok), tp = type_tok{1}; end
+        return;
+    end
+end
+
+function data = decodeVTKBinary(b64str, hdr_word_bytes)
+% Decode a VTK binary DataArray encoded with vtkZLibDataCompressor.
+%
+% VTK compressed binary format (little-endian, each word = hdr_word_bytes):
+%   word 0          : nblocks
+%   word 1          : uncompressed block size
+%   word 2          : uncompressed size of last block
+%   words 3..2+n    : compressed byte-size of each block (n = nblocks)
+%   [compressed block 0] ... [compressed block n-1]
+%
+% The header and each compressed block are each independently base64-
+% encoded and concatenated.  '=' padding may appear between chunks.
+
+    if nargin < 2 || isempty(hdr_word_bytes)
+        hdr_word_bytes = 4;
+    end
+
+    % Strip whitespace/newlines
+    b64str = regexprep(b64str, '\s+', '');
     if isempty(b64str)
         error('vtkLoader:decodeVTKBinary', 'Empty base64 string');
     end
 
-    hdr1    = b64decode_raw(b64str(1 : min(8, end)));
-    nblocks = double(typecast(hdr1(1:4), 'uint32'));
-
-    hdr_bytes_needed = (3 + nblocks) * 4;
-    hdr_b64_len = ceil(hdr_bytes_needed / 3) * 4;
-    hdr_b64 = b64str(1 : hdr_b64_len);
-    hdr_all = b64decode_raw(hdr_b64);
-    hdr_all = hdr_all(:)';
-
-    comp_sizes = zeros(1, nblocks, 'double');
-    for b = 1:nblocks
-        off = 12 + (b-1)*4 + 1;
-        comp_sizes(b) = double(typecast(hdr_all(off : off+3), 'uint32'));
-    end
-
-    rest_b64 = b64str(hdr_b64_len + 1 : end);
-    all_data = b64decode_raw(rest_b64);
-    all_data = all_data(:)';
-
-    pos    = 1;
-    blocks = cell(nblocks, 1);
-    for b = 1:nblocks
-        cs = comp_sizes(b);
-        if pos + cs - 1 > numel(all_data)
-            error('vtkLoader:decodeVTKBinary', ...
-                'Block %d: need %d bytes at pos %d but only %d available', ...
-                b, cs, pos, numel(all_data));
+    % Helper to read uint word from raw bytes
+    function v = readWord(raw, byteIdx)
+        if hdr_word_bytes == 4
+            v = double(typecast(raw(byteIdx:byteIdx+3), 'uint32'));
+        else
+            v = double(typecast(raw(byteIdx:byteIdx+7), 'uint64'));
         end
-        chunk     = all_data(pos : pos+cs-1);
-        blocks{b} = zlib_decompress(chunk(:));   % always column via (:)
-        pos       = pos + cs;
     end
-    data = vertcat(blocks{:});   % safe vertical concatenation of column vectors
+
+    % ---- Split concatenated base64 string into individual chunks ----
+    % Each chunk is independently padded to a multiple of 4 characters.
+    % We split on boundaries where '=' padding ends and a new chunk begins.
+    % Strategy: scan for every group of 4 characters.  If a group contains
+    % '=', it is the last group of a chunk.
+    chunks = splitB64Chunks(b64str);
+
+    % ---- Decode header chunk (always the first chunk) ----
+    hdr_raw = b64decode_one(chunks{1});
+
+    % Probe nblocks from first word
+    if numel(hdr_raw) < hdr_word_bytes
+        error('vtkLoader:decodeVTKBinary', 'Header too short');
+    end
+    nblocks = readWord(hdr_raw, 1);
+    if ~(nblocks >= 1 && nblocks <= 1e7)
+        error('vtkLoader:decodeVTKBinary', 'Implausible nblocks=%g', nblocks);
+    end
+    header_bytes = (3 + nblocks) * hdr_word_bytes;
+
+    % The header may span more than one chunk if the first chunk
+    % didn't contain enough bytes.  Usually it's exactly one chunk.
+    % If we got fewer bytes than needed, try monolithic decode.
+    if numel(hdr_raw) < header_bytes
+        % Fall back to decoding all chunks joined without padding
+        all_raw = b64decode_one(strjoin(chunks, ''));
+        hdr_raw = all_raw(1:header_bytes);
+        nblocks = readWord(hdr_raw, 1);
+        header_bytes = (3 + nblocks) * hdr_word_bytes;
+    end
+    hdr_raw = hdr_raw(1:header_bytes);
+
+    % Read compressed sizes from header
+    csizes = zeros(1, nblocks, 'double');
+    for b = 1:nblocks
+        off = 3*hdr_word_bytes + (b-1)*hdr_word_bytes + 1;
+        csizes(b) = readWord(hdr_raw, off);
+    end
+
+    % ---- Decode compressed blocks ----
+    % Case 1: chunked layout — we have exactly (1 + nblocks) chunks
+    nChunks = numel(chunks);
+    if nChunks == 1 + nblocks
+        blks = cell(nblocks, 1);
+        for b = 1:nblocks
+            rb = b64decode_one(chunks{1 + b});
+            cs = csizes(b);
+            if numel(rb) < cs
+                error('vtkLoader:decodeVTKBinary', ...
+                    'Block %d: decoded %d bytes but expected %d', b, numel(rb), cs);
+            end
+            blks{b} = zlib_decompress(rb(1:cs));
+        end
+        data = vertcat(blks{:});
+    elseif nChunks == 1
+        % Case 2: monolithic layout — everything in one base64 blob
+        if ~exist('all_raw','var')
+            all_raw = hdr_raw;  % Already decoded above, but may be partial
+            % Re-decode the whole thing
+            all_raw = b64decode_one(chunks{1});
+        end
+        pos = header_bytes + 1;
+        blks = cell(nblocks, 1);
+        for b = 1:nblocks
+            cs = csizes(b);
+            if pos + cs - 1 > numel(all_raw)
+                error('vtkLoader:decodeVTKBinary', ...
+                    'Block %d overruns buffer (pos=%d, cs=%d, len=%d)', ...
+                    b, pos, cs, numel(all_raw));
+            end
+            blks{b} = zlib_decompress(all_raw(pos:pos+cs-1));
+            pos = pos + cs;
+        end
+        data = vertcat(blks{:});
+    else
+        % Case 3: chunk count doesn't match expected — maybe some blocks
+        % share a chunk, or VTK used a different grouping.
+        % Concatenate all chunks after the header and decode as one blob.
+        rest_str = strjoin(chunks(2:end), '');
+        rest_raw = b64decode_one(rest_str);
+        pos = 1;
+        blks = cell(nblocks, 1);
+        for b = 1:nblocks
+            cs = csizes(b);
+            if pos + cs - 1 > numel(rest_raw)
+                error('vtkLoader:decodeVTKBinary', ...
+                    'Block %d overruns rest buffer (pos=%d, cs=%d, len=%d)', ...
+                    b, pos, cs, numel(rest_raw));
+            end
+            blks{b} = zlib_decompress(rest_raw(pos:pos+cs-1));
+            pos = pos + cs;
+        end
+        data = vertcat(blks{:});
+    end
+
     data = data(:);
 end
 
-function out = b64decode_raw(str)
-    table = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
-    str   = str(str ~= '=');
-    n     = numel(str);
-    if n == 0, out = uint8([]); return; end
-    vals = zeros(1, n, 'uint8');
-    for k = 1:n
-        idx = find(table == str(k), 1);
-        if isempty(idx)
-            error('vtkLoader:b64decode_raw', 'Invalid base64 char: %s', str(k));
+
+function chunks = splitB64Chunks(s)
+% Split a concatenated base64 string into individual chunks.
+% Each independently-encoded chunk is padded to a multiple of 4 chars.
+% We detect boundaries by finding '=' padding followed by a non-'=' char.
+    n = numel(s);
+    chunks = {};
+    start = 1;
+    i = 1;
+    while i <= n
+        if s(i) == '='
+            % Scan past all '=' chars (there can be 1 or 2)
+            j = i;
+            while j <= n && s(j) == '='
+                j = j + 1;
+            end
+            % End of a chunk at position j-1
+            chunks{end+1} = s(start:j-1); %#ok<AGROW>
+            start = j;
+            i = j;
+        else
+            i = i + 1;
         end
-        vals(k) = idx - 1;
     end
-    nGroups = floor(n / 4);
-    rem_    = mod(n, 4);
-    nout    = nGroups * 3;
-    if rem_ == 2, nout = nout + 1; elseif rem_ == 3, nout = nout + 2; end
-    out = zeros(1, nout, 'uint8');
-    oi  = 1;
-    for g = 1:nGroups
-        v = vals((g-1)*4+1 : g*4);
-        bits = bitor(bitor(bitor( ...
-            bitshift(uint32(v(1)), 18), bitshift(uint32(v(2)), 12)), ...
-            bitshift(uint32(v(3)),  6)), uint32(v(4)));
-        out(oi)   = uint8(bitshift(bits, -16));
-        out(oi+1) = uint8(bitand(bitshift(bits, -8), 255));
-        out(oi+2) = uint8(bitand(bits, 255));
-        oi = oi + 3;
+    % Remaining characters (last chunk may have no padding)
+    if start <= n
+        chunks{end+1} = s(start:n);
     end
-    if rem_ >= 2
-        v1 = vals(nGroups*4+1);  v2 = vals(nGroups*4+2);
-        out(oi) = uint8(bitor(bitshift(uint32(v1), 2), bitshift(uint32(v2), -4)));
-        oi = oi + 1;
+    if isempty(chunks)
+        chunks = {s};
     end
-    if rem_ == 3
-        v2 = vals(nGroups*4+2);  v3 = vals(nGroups*4+3);
-        out(oi) = uint8(bitand(bitor(bitshift(uint32(v2), 4), bitshift(uint32(v3), -2)), 255));
+end
+
+
+function out = b64decode_one(str)
+% Decode a single base64-encoded chunk to uint8 bytes.
+% Strips any internal '=' that are NOT at the very end (for joined strings),
+% and ensures proper end-padding.
+    str = regexprep(str, '\s+', '');
+    if isempty(str)
+        out = uint8([]);
+        return;
     end
+
+    % Remove all '=' first, then re-pad at the end
+    str_clean = strrep(str, '=', '');
+    if isempty(str_clean)
+        out = uint8([]);
+        return;
+    end
+    rem4 = mod(numel(str_clean), 4);
+    if rem4 == 2
+        str_clean = [str_clean '=='];
+    elseif rem4 == 3
+        str_clean = [str_clean '='];
+    elseif rem4 == 1
+        % Drop last char (invalid)
+        str_clean = str_clean(1:end-1);
+        rem4 = mod(numel(str_clean), 4);
+        if rem4 == 2, str_clean = [str_clean '==']; end
+        if rem4 == 3, str_clean = [str_clean '=']; end
+    end
+
+    decoder = java.util.Base64.getDecoder();
+    jbytes  = decoder.decode(str_clean);
+    out     = typecast(jbytes, 'uint8');
+    out     = out(:);
 end
 
 function out = zlib_decompress(data)
@@ -545,4 +751,3 @@ function out = zlib_decompress(data)
         end
     end
 end
-
