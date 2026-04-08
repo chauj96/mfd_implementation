@@ -458,8 +458,8 @@ function data = decodeVTKBinary(b64str)
     all_data = b64decode_raw(rest_b64);
     all_data = all_data(:)';
 
-    pos  = 1;
-    data = uint8([]);
+    pos    = 1;
+    blocks = cell(nblocks, 1);
     for b = 1:nblocks
         cs = comp_sizes(b);
         if pos + cs - 1 > numel(all_data)
@@ -467,10 +467,11 @@ function data = decodeVTKBinary(b64str)
                 'Block %d: need %d bytes at pos %d but only %d available', ...
                 b, cs, pos, numel(all_data));
         end
-        chunk = all_data(pos : pos+cs-1);
-        data  = [data, zlib_decompress(chunk(:))']; %#ok<AGROW>
-        pos   = pos + cs;
+        chunk     = all_data(pos : pos+cs-1);
+        blocks{b} = zlib_decompress(chunk(:));   % always column via (:)
+        pos       = pos + cs;
     end
+    data = vertcat(blocks{:});   % safe vertical concatenation of column vectors
     data = data(:);
 end
 
@@ -522,8 +523,8 @@ function out = zlib_decompress(data)
         b = java.util.zip.InflaterInputStream(a);
         c = java.io.ByteArrayOutputStream();
         isc.copyStream(b, c);
-        out = typecast(c.toByteArray(), 'uint8')';
-        out = out(:)';
+        out = typecast(c.toByteArray(), 'uint8');
+        out = out(:);
     catch
         try
             inf = java.util.zip.Inflater(true);
@@ -536,8 +537,8 @@ function out = zlib_decompress(data)
                 if n == 0 && ~inf.finished(), break; end
             end
             inf.end();
-            out = typecast(buf.toByteArray(), 'uint8')';
-            out = out(:)';
+            out = typecast(buf.toByteArray(), 'uint8');
+            out = out(:);
         catch ME2
             error('vtkLoader:zlib_decompress', ...
                 'Could not decompress: %s', ME2.message);
