@@ -30,7 +30,7 @@ addpath(genpath('FACTORIZE'))
 % [cell_struct, face_struct, V3, cells3D] = extend2Dto3D(V2, cells2D, H);
 
 % (Option 3): Multi layer 3D testing (no need extrusion, but need MRST)
-setupMRSTAuto();
+% setupMRSTAuto();
 % H = 0.4;
 % Lx = 1.0;
 % Ly = 1.0;
@@ -43,6 +43,16 @@ G = scratch_conformal();
 Lx = 1;
 Ly = 1;
 Lz = .4;
+
+
+%input_vtk_file = "/Users/oduran/Downloads/sharon_MFD_tet.vtu"; % (ok)
+% input_vtk_file = "/Users/oduran/Downloads/sharon_MFD_hex.vtu"; % (notok)
+%input_vtk_file = "/Users/oduran/Downloads/polyhedral_voronoi_lattice.vtu"; % (notok)
+%input_vtk_file = "/Users/oduran/Downloads/polyhedral_voronoi_complex.vtu"; % (notok)
+% [cell_struct, face_struct, V3, cells3D, attribute] = vtkLoader(input_vtk_file);
+% Lx = 1;
+% Ly = 1;
+% Lz = 1;
 
 
 %% Step 3: Assign physical values and get projection of analytical solution (flux and pressure)
@@ -110,7 +120,7 @@ for it = 1:n_tol
      % R_K = M_K * mK - B_K * pK + d_K; % residual equation
      R_K = (M_K * mK - B_K * pK + d_K) / norm(DeltaP_K); % scaled residual equation
      res_3D(face_ids)    = res_3D(face_ids)    + R_K;
-     % fprintf("Projected local residual norm: %f\n", norm(R_K));
+     fprintf("Projected local residual norm: %f\n", norm(R_K));
      res_count(face_ids) = res_count(face_ids) + 1;
  end
 
@@ -429,15 +439,6 @@ fprintf('m DOFs     : %10d\n', num_m_dofs);
 fprintf('p DOFs     : %10d\n', num_p_dofs);
 % Note: preconditioner implemented in separate file `block_prec.m` in the same folder
 % to remain compatible with MATLAB versions that don't allow local functions in scripts.
-
-
-
-
-
-
-
-
-
 
 
 function y = block_prec(r, F_mm, A_pm, F_S, num_m_dofs)

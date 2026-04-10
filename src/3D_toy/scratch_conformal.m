@@ -14,7 +14,19 @@ bdr   = [ 0, 0, 0;  ...
           0, ty, tz];
 
 %% Set gridding parameters
-fGs = tx/16;
+fGs = tx / 8;
+% Decouple 3D cell size (dt) from surface triangle size (fGs)
+dt = tx / 16; % Set this to your desired 3D cell size, regardless of fGs
+
+% Surface geometry parameters — reduce these to make surfaces flatter:
+%   zTilt    : vertical tilt across y  (0 = horizontal plane)
+%   yBend    : parabolic bend in y     (0 = flat in y)
+%   sinAmp   : sinusoidal waviness     (0 = no waviness)
+zTilt  = 0.15;   % was 0.15
+yBend  = 0.08;   % was 0.08
+sinAmp = 0.03;   % was 0.04
+
+
 rho = @(p) fGs*(1+0*p(:,1));
 
 %% Triangulate the two curved surfaces
@@ -30,13 +42,7 @@ fd = @(p) drectangle(p, rectangle1(1),rectangle1(2), rectangle1(3), rectangle1(4
 t1.ConnectivityList = t;
 t2.ConnectivityList = t;
 
-% Surface geometry parameters — reduce these to make surfaces flatter:
-%   zTilt    : vertical tilt across y  (0 = horizontal plane)
-%   yBend    : parabolic bend in y     (0 = flat in y)
-%   sinAmp   : sinusoidal waviness     (0 = no waviness)
-zTilt  = 0.15;   % was 0.15
-yBend  = 0.0;   % was 0.08
-sinAmp = 0.0;   % was 0.04
+
 
 faultHeight1z = @(p)   ty/6*ones(size(p,1),1) + zTilt*p(:,2);
 faultHeight2z = @(p) 5*ty/6*ones(size(p,1),1) - zTilt*p(:,2);
@@ -99,10 +105,11 @@ fprintf('  Gs / fGs ratio           min/mean/max: %.3f / %.3f / %.3f\n', ...
         min(F.f.Gs)/fGs, mean(F.f.Gs)/fGs, max(F.f.Gs)/fGs);
 
 %% Create background reservoir sites on a regular grid
-dt = fGs; % use the same mesh size
+
 xmax = max(bdr(:,1)) - dt/2;  xmin = min(bdr(:,1)) + dt/2;
 ymax = max(bdr(:,2)) - dt/2;  ymin = min(bdr(:,2)) + dt/2;
 zmax = max(bdr(:,3)) - dt/2;  zmin = min(bdr(:,3)) + dt/2;
+
 
 xr = xmin:dt:xmax;  yr = ymin:dt:ymax;  zr = zmin:dt:zmax;
 [X,Y,Z] = ndgrid(xr, yr, zr);

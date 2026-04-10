@@ -145,7 +145,7 @@ function checkVolumeConsistency(cell_struct, face_struct, nCells)
 
         if rel_err > 1e-10
             inexact = inexact + 1;
-            fail_list(end+1,:) = [c, rel_err, Vc, V_div, rel_vol_err]; %#ok<AGROW>
+            fail_list(end+1,:) = [c, rel_err, Vc, V_div, rel_vol_err]; 
         end
     end
 
