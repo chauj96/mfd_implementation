@@ -1,4 +1,4 @@
-function G = scratch()
+function G = scratch_conformal()
 mrstModule add upr
 %% set boundary
 tx = 1;
@@ -14,7 +14,7 @@ bdr   = [ 0, 0, 0;  ...
           0, ty, tz];
 
 %% Set gridding parameters
-fGs = tx/20;
+fGs = tx/16;
 rho = @(p) fGs*(1+0*p(:,1));
 
 %% Triangulate the two curved surfaces
@@ -27,10 +27,6 @@ fd = @(p) drectangle(p, rectangle1(1),rectangle1(2), rectangle1(3), rectangle1(4
 
 [Pts,t] = distmesh2d(fd, hd, fGs, rectangle1, fixedPts, false);
 
-%% --- Diagnostic: 2D parameter-space triangle quality ---
-fprintf('\n=== Surface triangulation quality (2D parameter space) ===\n');
-triQualityReport(Pts, t, '2D param space');
-
 t1.ConnectivityList = t;
 t2.ConnectivityList = t;
 
@@ -38,9 +34,9 @@ t2.ConnectivityList = t;
 %   zTilt    : vertical tilt across y  (0 = horizontal plane)
 %   yBend    : parabolic bend in y     (0 = flat in y)
 %   sinAmp   : sinusoidal waviness     (0 = no waviness)
-zTilt  = 0.15;   % was 0.40
-yBend  = 0.08;   % was 0.20
-sinAmp = 0.04;   % was 0.10
+zTilt  = 0.15;   % was 0.15
+yBend  = 0.0;   % was 0.08
+sinAmp = 0.0;   % was 0.04
 
 faultHeight1z = @(p)   ty/6*ones(size(p,1),1) + zTilt*p(:,2);
 faultHeight2z = @(p) 5*ty/6*ones(size(p,1),1) - zTilt*p(:,2);
@@ -53,13 +49,6 @@ faultHeight2x = @(p) p(:,2) + yBend*(p(:,1)-0.75).^2;
 
 t1.Points(:,2) = faultHeight1x(t1.Points);
 t2.Points(:,2) = faultHeight2x(t2.Points);
-
-%% --- Diagnostic: 3D surface quality for both surfaces ---
-fprintf('\n=== Surface 1 triangle quality (3D) ===\n');
-triQualityReport(t1.Points, t1.ConnectivityList, 'Surface 1 (3D)');
-
-fprintf('\n=== Surface 2 triangle quality (3D) ===\n');
-triQualityReport(t2.Points, t2.ConnectivityList, 'Surface 2 (3D)');
 
 %% Generate conformal surface sites using the UPR pipeline
 % surfaceSites3D places equidistant site pairs on both sides of each
@@ -109,9 +98,6 @@ fprintf('  Site-pair separation Gs  min/mean/max: %.4f / %.4f / %.4f\n', ...
 fprintf('  Gs / fGs ratio           min/mean/max: %.3f / %.3f / %.3f\n', ...
         min(F.f.Gs)/fGs, mean(F.f.Gs)/fGs, max(F.f.Gs)/fGs);
 
-%% Expand boundary slightly for robustness
-bdr = 1.01 * bdr;
-
 %% Create background reservoir sites on a regular grid
 dt = fGs; % use the same mesh size
 xmax = max(bdr(:,1)) - dt/2;  xmin = min(bdr(:,1)) + dt/2;
@@ -141,47 +127,38 @@ fprintf('  Reservoir sites after exclusion: %d\n', size(rSites,1));
 %% Merge surface sites and reservoir sites, then build grid
 sites = [F.f.pts; rSites];
 
+% Clip all sites strictly inside bdr so mirroredPebi3D does not silently
+% drop surface sites that landed exactly on or outside the boundary.
+eps_clip = 1e-8;
+sites(:,1) = min(max(sites(:,1), min(bdr(:,1)) + eps_clip), max(bdr(:,1)) - eps_clip);
+sites(:,2) = min(max(sites(:,2), min(bdr(:,2)) + eps_clip), max(bdr(:,2)) - eps_clip);
+sites(:,3) = min(max(sites(:,3), min(bdr(:,3)) + eps_clip), max(bdr(:,3)) - eps_clip);
+
 fprintf('Total number of sites = %d\n', size(sites,1));
 
 G = mirroredPebi3D(sites, bdr);
-
-%% Clean up degenerate geometry using removeShortEdges (public API)
-%
-% Sliver faces have area << mean but topologically valid nodes.
-% Their shortest edge has length ≈ 2*area / longest_edge ≈ 2*area / fGs.
-% Setting edgeTol just above that length causes removeShortEdges to merge
-% the two nodes of that short edge, which collapses the sliver face to
-% < 3 nodes → removeCollapsedFaces removes it → removeCollapsedCells
-% merges the two formerly-separated cells.
-%
-% Threshold: 1e-4 * mean(face areas) — conservative enough to only touch
-% genuinely degenerate faces, not valid small-but-real faces.
-G_tmp   = computeGeometry(G);
-% edgeTol must be large enough to collapse the shortest edge of any sliver.
-% A sliver face with area A_min and longest edge L_max has shortest edge
-% e_short = 2*A_min/L_max.  We use sqrt(A_min) as a robust single-number
-% estimate (geometric mean of the two characteristic lengths).
-% We target all faces with area < 1e-3 * mean(area).
-sliverArea = 1e-3 * mean(G_tmp.faces.areas);
-edgeTol    = sqrt(sliverArea);
-clear G_tmp;
-
-fprintf('\nCleaning degenerate geometry (edgeTol = %.2e) ...\n', edgeTol);
-nC0 = G.cells.num; nF0 = G.faces.num; nN0 = G.nodes.num;
-[G, ~] = removeShortEdges(G, edgeTol);
-fprintf('  Removed: %d cells,  %d faces,  %d nodes\n', ...
-    nC0-G.cells.num, nF0-G.faces.num, nN0-G.nodes.num);
-
-
 G = computeGeometry(G);
+
+% Compute robust geometric centroids for all cells (replaces G.cells.centroids
+% which holds Voronoi generators for surface cells after mirroredPebi3D).
+geom_cc  = zeros(G.cells.num, 3);
+geom_vol = zeros(G.cells.num, 1);
+for ci = 1:G.cells.num
+    [geom_cc(ci,:), geom_vol(ci)] = computeRobustCellCentroid(G, ci);
+end
+
+surf_sites = F.f.pts;
+nSurf      = size(surf_sites, 1);
+nCells_g   = G.cells.num;
+
+
+G.cells.centroids = geom_cc;
+
 
 fprintf('Mesh built:\n');
 fprintf('  #cells = %d\n', G.cells.num);
 fprintf('  #faces = %d\n', G.faces.num);
 fprintf('  #nodes = %d\n', G.nodes.num);
-
-%% --- Diagnostic: 3D Voronoi cell quality ---
-cellQualityReport(G);
 
 %% Classify cells by position relative to the two surfaces
 c  = G.cells.centroids;
@@ -251,19 +228,244 @@ fprintf('  F (faces)    = %d\n', F_count);
 fprintf('  C (cells)    = %d\n', C);
 fprintf('  chi = V - E + F - C = %d - %d + %d - %d = %d\n', ...
         V, E, F_count, C, chi);
+
+%% --- Volume consistency check ---
+checkVolumeConsistency(G);
+
 end
 
+
 %% ---------------------------------------------------------------
-function Rcirc = triCircumradii(pts, conn)
-% Per-triangle circumradius for a triangulation embedded in 3D.
-p1 = pts(conn(:,1),:);  p2 = pts(conn(:,2),:);  p3 = pts(conn(:,3),:);
-L1 = sqrt(sum((p2-p1).^2,2));
-L2 = sqrt(sum((p3-p2).^2,2));
-L3 = sqrt(sum((p1-p3).^2,2));
-s     = (L1+L2+L3)/2;
-area  = sqrt(max(s.*(s-L1).*(s-L2).*(s-L3), 0));
-Rcirc = (L1.*L2.*L3) ./ max(4*area, eps);
+function checkVolumeConsistency(G)
+nCells = G.cells.num;
+fc     = G.faces.centroids;
+fn     = G.faces.normals;
+cc     = G.cells.centroids;
+cv     = G.cells.volumes;
+N      = G.faces.neighbors;
+
+cFacePos = G.cells.facePos;
+cFaces   = G.cells.faces(:,1);
+
+inexact     = 0;
+max_rel_err = 0;
+fail_list   = [];
+
+for ci = 1:nCells
+    idx  = cFacePos(ci) : cFacePos(ci+1)-1;
+    fids = cFaces(idx);
+    xc   = cc(ci,:)';
+    Vc   = cv(ci);
+
+    T = zeros(3,3);
+    for k = 1:numel(fids)
+        f   = fids(k);
+        sgn = 2*(N(f,1) == ci) - 1;   % +1 or -1
+        n_out = sgn * fn(f,:)';
+        xf    = fc(f,:)';
+        T     = T + n_out * (xf - xc)';
+    end
+
+    % Also recompute volume from divergence theorem (trace/3)
+    V_div = trace(T) / 3;
+
+    rel_err     = norm(T - Vc * eye(3), 'fro') / Vc;
+    rel_vol_err = abs(V_div - Vc) / Vc;
+    max_rel_err = max(max_rel_err, rel_err);
+    if rel_err > 1e-10
+        inexact = inexact + 1;
+        fail_list(end+1,:) = [ci, rel_err, Vc, V_div, rel_vol_err]; %#ok<AGROW>
+    end
 end
+
+fprintf('\n=== scratch_conformal:: MFD Volume Consistency Check ===\n');
+fprintf('  Cells checked           : %d\n', nCells);
+fprintf('  Max relative error      : %.3e\n', max_rel_err);
+if inexact == 0
+    fprintf('  All cells PASS (tol 1e-10).\n');
+else
+    fprintf('  FAILED cells (rel_err > 1e-10): %d / %d\n', inexact, nCells);
+
+    % Diagnose: are failures concentrated near face centroids?
+    % Recompute volume via div theorem and compare with stored volume
+    vol_err = fail_list(:,5);
+    fprintf('\n  Volume discrepancy (|V_div - V_stored|/V_stored) in failed cells:\n');
+    fprintf('    min/mean/max: %.3e / %.3e / %.3e\n', ...
+            min(vol_err), mean(vol_err), max(vol_err));
+    fprintf('  => If vol discrepancy is large, centroid correction broke\n');
+    fprintf('     the centroid/volume consistency assumed by computeGeometry.\n');
+
+    % Show worst 5
+    [~, ord] = sort(fail_list(:,2), 'descend');
+    fprintf('\n  Worst 5 cells (ci, rel_T_err, V_stored, V_div):\n');
+    for k = 1:min(5, size(fail_list,1))
+        r = fail_list(ord(k),:);
+        fprintf('    cell %4d  rel_err=%.3e  V_stored=%.4e  V_div=%.4e\n', ...
+                r(1), r(2), r(3), r(4));
+    end
+end
+end
+
+
+function [centroid, volume] = computeRobustCellCentroid(G, ci)
+% computeRobustCellCentroid  Compute cell centroid and volume via the
+%   divergence-theorem / signed-tetrahedra method.
+%
+%   For each polygonal face, fan-triangulate from the face centroid,
+%   form a tetrahedron with an arbitrary reference point, accumulate
+%   signed volumes and centroid contributions.
+%
+%   This is numerically stable even for:
+%     - non-convex cells
+%     - boundary cells far from the origin
+%     - thin/sliver conformal surface cells
+%
+%   Inputs
+%     G   : MRST grid (computeGeometry already called)
+%     ci  : cell index
+%
+%   Outputs
+%     centroid : 1x3 centroid (geometric, not Voronoi generator)
+%     volume   : signed volume (positive for outward-consistent normals)
+
+    % ---- gather face indices for this cell --------------------------
+    faceIdx = G.cells.faces(G.cells.facePos(ci):G.cells.facePos(ci+1)-1, 1);
+    nFaces  = numel(faceIdx);
+
+    % ---- reference point: mean of face centroids (avoids origin bias) --
+    ref = mean(G.faces.centroids(faceIdx, :), 1);   % 1x3
+
+    v_total    = 0.0;
+    c_weighted = [0.0, 0.0, 0.0];
+
+    for k = 1:nFaces
+        f = faceIdx(k);
+
+        % Outward sign: MRST normals point from neighbor(1)->neighbor(2)
+        sgn = 2 * (G.faces.neighbors(f, 1) == ci) - 1;   % +1 or -1
+
+        % Nodes of this face
+        nStart = G.faces.nodePos(f);
+        nEnd   = G.faces.nodePos(f+1) - 1;
+        fnodes = G.faces.nodes(nStart:nEnd);   % polygon node indices
+        nv     = numel(fnodes);
+
+        % Face centroid as fan apex (handles non-planar/non-convex faces)
+        fc = mean(G.nodes.coords(fnodes, :), 1);   % 1x3
+
+        % Fan-triangulate the polygon from fc
+        for j = 1:nv
+            % Triangle vertices (shifted to ref for stability)
+            a = G.nodes.coords(fnodes(j),              :) - ref;   % 1x3
+            b = G.nodes.coords(fnodes(mod(j,nv)+1),    :) - ref;   % 1x3
+            c = fc - ref;                                           % 1x3
+
+            % Ensure outward orientation
+            if sgn < 0
+                [a, b] = deal(b, a);   % swap to flip triangle orientation
+            end
+
+            % Signed tetrahedron volume: (1/6) * dot(a, cross(b,c))
+            v_i = (1.0/6.0) * dot(a, cross(b, c));
+
+            % Centroid of this tetrahedron: (ref + a + b + c) / 4
+            % But since a,b,c are already shifted, tet centroid = (a+b+c)/4
+            v_total    = v_total    + v_i;
+            c_weighted = c_weighted + v_i * (a + b + c) / 4.0;
+        end
+    end
+
+    volume   = v_total;
+    centroid = ref + c_weighted / v_total;   % shift back to world coords
+end
+
+
+function [face_centroid, face_area, face_normal] = computeRobustFaceCentroid(G, f)
+% computeRobustFaceCentroid  Robust face centroid, area, and unit normal
+%   via fan-triangulation from the vertex mean.
+%
+%   Method: fan-triangulate polygon from vertex mean (ref), accumulate
+%   area-weighted sub-triangle centroids. Consistent with the signed-
+%   tetrahedra cell centroid method.
+%
+%   Inputs
+%     G : MRST grid (computeGeometry already called)
+%     f : face index (1-based)
+%
+%   Outputs
+%     face_centroid : 1x3  area-weighted centroid
+%     face_area     : scalar >= 0
+%     face_normal   : 1x3  unit normal, sign consistent with MRST
+%                     (points from neighbor(1) toward neighbor(2))
+
+    % --- gather polygon nodes -------------------------------------------
+    nStart = G.faces.nodePos(f);
+    nEnd   = G.faces.nodePos(f+1) - 1;
+    fnodes = G.faces.nodes(nStart:nEnd);
+    nv     = numel(fnodes);
+    coords = G.nodes.coords(fnodes, :);   % nv x 3
+
+    % --- reference point: vertex mean (removes origin bias) -------------
+    ref = mean(coords, 1);                % 1x3
+
+    % --- fan-triangulation from ref -------------------------------------
+    area_vec_sum = [0.0, 0.0, 0.0];      % signed area-weighted normal
+    c_weighted   = [0.0, 0.0, 0.0];      % area-weighted centroid accumulator
+    area_total   = 0.0;                   % sum of unsigned triangle areas
+
+    for j = 1:nv
+        a = coords(j,           :) - ref;              % 1x3
+        b = coords(mod(j,nv)+1, :) - ref;              % 1x3
+        % apex is ref itself => c = ref - ref = [0,0,0]
+
+        cr       = cross(a, b);                         % signed area vector * 2
+        tri_area = 0.5 * norm(cr);
+
+        if tri_area < eps
+            continue                                    % skip degenerate sliver
+        end
+
+        area_vec_sum = area_vec_sum + 0.5 * cr;         % accumulate signed
+        area_total   = area_total   + tri_area;
+
+        % Sub-triangle centroid in shifted coords: (a + b + 0) / 3
+        c_weighted = c_weighted + tri_area * (a + b) / 3.0;
+    end
+
+    % --- face area & centroid -------------------------------------------
+    face_area = norm(area_vec_sum);                     % signed magnitude
+
+    if area_total > eps
+        face_centroid = ref + c_weighted / area_total;
+    else
+        % Degenerate face: fall back to vertex mean
+        face_centroid = ref;
+        warning('computeRobustFaceCentroid: degenerate face %d, using vertex mean', f);
+    end
+
+    % --- unit normal, sign consistent with MRST -------------------------
+    % MRST convention: normals(f) points from neighbor(1) -> neighbor(2).
+    % area_vec_sum direction depends on node winding; align with MRST.
+    if face_area > eps
+        n_candidate = area_vec_sum / face_area;
+
+        % Validate against MRST's stored normal (already area-weighted)
+        n_mrst = G.faces.normals(f, :);
+        n_mrst_unit = n_mrst / max(norm(n_mrst), eps);
+
+        if dot(n_candidate, n_mrst_unit) < 0
+            n_candidate = -n_candidate;               % flip to match MRST
+        end
+        face_normal = n_candidate;
+    else
+        % Degenerate: use MRST stored normal as fallback
+        n_mrst = G.faces.normals(f, :);
+        n_norm = norm(n_mrst);
+        face_normal = n_mrst / max(n_norm, eps);
+        warning('computeRobustFaceCentroid: near-zero area face %d', f);
+    end
+end
+
 
 %% ---------------------------------------------------------------
 function R = circumradiusPerVertex(pts, conn, gamma)
@@ -284,64 +486,6 @@ R = accumarray(verts, rvals, [nPts,1], @max);
 R = R / gamma;
 end
 
-%% ---------------------------------------------------------------
-function cellQualityReport(G)
-% Report quality of 3D Voronoi cells: insphere/circumsphere ratio,
-% volume distribution, and face area distribution.
-cc = G.cells.centroids;
-nC = G.cells.num;
-fc       = G.faces.centroids;
-cFacePos = G.cells.facePos;
-inR  = zeros(nC,1);
-outR = zeros(nC,1);
-for k = 1:nC
-    fi      = G.cells.faces(cFacePos(k):cFacePos(k+1)-1);
-    d       = sqrt(sum((fc(fi,:) - cc(k,:)).^2, 2));
-    inR(k)  = min(d);
-    outR(k) = max(d);
-end
-ratio = inR ./ max(outR, eps);
-vol   = G.cells.volumes;
-area  = G.faces.areas;
-fprintf('\n=== 3D Voronoi cell quality ===\n');
-fprintf('  Cell volume  min/mean/max : %.2e / %.2e / %.2e\n', min(vol),mean(vol),max(vol));
-fprintf('  Volume CoV (std/mean)     : %.3f\n', std(vol)/mean(vol));
-fprintf('  inR/outR  min/mean/max    : %.3f / %.3f / %.3f\n', min(ratio),mean(ratio),max(ratio));
-fprintf('  Frac. inR/outR < 0.10     : %.1f%%  (flat/sliver cells)\n', 100*mean(ratio<0.10));
-fprintf('  Frac. inR/outR < 0.20     : %.1f%%\n', 100*mean(ratio<0.20));
-fprintf('  Frac. vol < 0.01*mean_vol : %.1f%%  (tiny cells)\n', 100*mean(vol<0.01*mean(vol)));
-fprintf('  Face area  min/mean/max   : %.2e / %.2e / %.2e\n', min(area),mean(area),max(area));
-fprintf('  Frac. face area < 1e-10   : %.2f%%  (degenerate faces)\n', 100*mean(area<1e-10));
-fprintf('  Frac. face area < 1e-6    : %.2f%%\n', 100*mean(area<1e-6));
-end
 
-%% ---------------------------------------------------------------
-function triQualityReport(pts, conn, label)
-% Triangle quality: edge lengths, aspect ratio, minimum angle.
-nT = size(conn,1);
-p1 = pts(conn(:,1),:);  p2 = pts(conn(:,2),:);  p3 = pts(conn(:,3),:);
-L1 = sqrt(sum((p2-p1).^2,2));
-L2 = sqrt(sum((p3-p2).^2,2));
-L3 = sqrt(sum((p1-p3).^2,2));
-allL = [L1;L2;L3];
-s    = (L1+L2+L3)/2;
-area = sqrt(max(s.*(s-L1).*(s-L2).*(s-L3), 0));
-R_circ = (L1.*L2.*L3) ./ max(4*area, eps);
-r_in   = area ./ max(s, eps);
-AR     = R_circ ./ max(2*r_in, eps);
-cosA = (L2.^2+L3.^2-L1.^2) ./ max(2*L2.*L3, eps);
-cosB = (L1.^2+L3.^2-L2.^2) ./ max(2*L1.*L3, eps);
-cosC = (L1.^2+L2.^2-L3.^2) ./ max(2*L1.*L2, eps);
-minAng = min([acosd(min(max(cosA,-1),1)), ...
-              acosd(min(max(cosB,-1),1)), ...
-              acosd(min(max(cosC,-1),1))], [], 2);
-nDegen = sum(area < 1e-14);
-fprintf('[%s]\n', label);
-fprintf('  #triangles          : %d  (degenerate: %d)\n', nT, nDegen);
-fprintf('  Edge length  min/mean/max: %.4f / %.4f / %.4f\n', min(allL),mean(allL),max(allL));
-fprintf('  Aspect ratio min/mean/max: %.3f / %.3f / %.3f\n', min(AR),mean(AR),max(AR));
-fprintf('  Min angle [deg] min/mean  : %.2f / %.2f\n', min(minAng),mean(minAng));
-fprintf('  Frac. AR > 3             : %.1f%%\n', 100*mean(AR>3));
-fprintf('  Frac. min-angle < 20 deg : %.1f%%\n', 100*mean(minAng<20));
-fprintf('  Frac. min-angle < 10 deg : %.1f%%\n', 100*mean(minAng<10));
-end
+
+
