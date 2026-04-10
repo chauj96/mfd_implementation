@@ -120,7 +120,7 @@ for it = 1:n_tol
      % R_K = M_K * mK - B_K * pK + d_K; % residual equation
      R_K = (M_K * mK - B_K * pK + d_K) / norm(DeltaP_K); % scaled residual equation
      res_3D(face_ids)    = res_3D(face_ids)    + R_K;
-     fprintf("Projected local residual norm: %f\n", norm(R_K));
+     % fprintf("Projected local residual norm: %f\n", norm(R_K));
      res_count(face_ids) = res_count(face_ids) + 1;
  end
 
