@@ -14,17 +14,17 @@ bdr   = [ 0, 0, 0;  ...
           0, ty, tz];
 
 %% Set gridding parameters
-fGs = tx / 8;
+fGs = tx / 16;
 % Decouple 3D cell size (dt) from surface triangle size (fGs)
-dt = tx / 16; % Set this to your desired 3D cell size, regardless of fGs
+dt = tx / 40; % Set this to your desired 3D cell size, regardless of fGs
 
 % Surface geometry parameters — reduce these to make surfaces flatter:
 %   zTilt    : vertical tilt across y  (0 = horizontal plane)
 %   yBend    : parabolic bend in y     (0 = flat in y)
 %   sinAmp   : sinusoidal waviness     (0 = no waviness)
-zTilt  = 0.15;   % was 0.15
-yBend  = 0.08;   % was 0.08
-sinAmp = 0.03;   % was 0.04
+zTilt  = 0.3;   % was 0.15
+yBend  = 0.1;   % was 0.08
+sinAmp = 0.09;   % was 0.04
 
 
 rho = @(p) fGs*(1+0*p(:,1));
@@ -117,7 +117,7 @@ rSites = [X(:), Y(:), Z(:)];
 
 % Jitter background sites slightly to break exact equidistance configurations.
 rng(42);
-rSites = rSites + 0.01*dt*(2*rand(size(rSites))-1);
+% rSites = rSites + 0.01*dt*(2*rand(size(rSites))-1);
 
 % Step 1 – necessary condition: remove sites inside circumscribed vertex balls.
 rSites = surfaceSufCond3D(rSites, F.c.CC, F.c.R);
@@ -492,7 +492,3 @@ rvals = [Rcirc;     Rcirc;     Rcirc    ];
 R = accumarray(verts, rvals, [nPts,1], @max);
 R = R / gamma;
 end
-
-
-
-

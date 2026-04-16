@@ -1,4 +1,4 @@
-function writeExtrudedMeshVTP(filename, V3, cell_struct, face_struct, cellData, cellDataName)
+function writeExtrudedMeshVTP(filename, V3, cell_struct, face_struct, cellData, cellDataName, flag)
 % Write extruded 3D mesh after cell classification
     
     if nargin < 6, cellDataName = 'cellMarking'; end
@@ -87,12 +87,22 @@ function writeExtrudedMeshVTP(filename, V3, cell_struct, face_struct, cellData, 
     fprintf(fid,'</Cells>\n');
     
     % CellData
-    fprintf(fid,'<CellData Scalars="%s">\n', cellDataName);
-    fprintf(fid,'<DataArray type="Int32" Name="%s" format="ascii">\n', cellDataName);
-    fprintf(fid,'%d\n', cellData);
-    fprintf(fid,'</DataArray>\n');
-    fprintf(fid,'</CellData>\n');
-    
+    if strcmp(flag, 'cell_plot')
+        fprintf(fid,'<CellData Scalars="%s">\n', cellDataName);
+        fprintf(fid,'<DataArray type="Int32" Name="%s" format="ascii">\n', cellDataName);
+        fprintf(fid,'%d\n', cellData);
+        fprintf(fid,'</DataArray>\n');
+        fprintf(fid,'</CellData>\n');
+
+    elseif strcmp(flag, 'saturation_plot')
+        cellData = cellData(:);
+        fprintf(fid,'<CellData Scalars="%s">\n', cellDataName);
+        fprintf(fid,'<DataArray type="Float64" Name="%s" format="ascii">\n', cellDataName);
+        fprintf(fid,'%.15g ', cellData); 
+        fprintf(fid,'\n</DataArray>\n');
+        fprintf(fid,'</CellData>\n');
+    end
+
     fprintf(fid,'</Piece>\n');
     fprintf(fid,'</UnstructuredGrid>\n');
     fprintf(fid,'</VTKFile>\n');
