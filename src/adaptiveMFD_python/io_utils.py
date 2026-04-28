@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 # - export mesh and data to VTU (ParaView)
 # - print solver error tables and plot the error
 
-def write_vtu(filename, V3, cell_struct, face_struct, cellData, cellDataName):
+def write_vtu(filename, V3, cell_struct, face_struct, cellData, cellDataName, flag):
 
     nCells = len(cell_struct)
     nPts = V3.shape[0]
@@ -89,8 +89,15 @@ def write_vtu(filename, V3, cell_struct, face_struct, cellData, cellDataName):
 
         # Cell data
         fid.write(f'<CellData Scalars="{cellDataName}">\n')
-        fid.write(f'<DataArray type="Int32" Name="{cellDataName}" format="ascii">\n')
-        fid.write(" ".join(map(str, cellData)))
+
+        if flag == "cell_plot":
+            fid.write(f'<DataArray type="Int32" Name="{cellDataName}" format="ascii">\n')
+            fid.write(" ".join(map(str, cellData.astype(int))))
+            
+        elif flag == "saturation_plot":
+            fid.write(f'<DataArray type="Float64" Name="{cellDataName}" format="ascii">\n')
+            fid.write(" ".join(map(str, cellData.astype(float))))
+
         fid.write('\n</DataArray>\n</CellData>\n')
 
         fid.write('</Piece>\n</UnstructuredGrid>\n</VTKFile>\n')
@@ -104,13 +111,18 @@ def print_pressure_err(results):
     print("-"*40)
 
     for tol, rel_err, abs_err in results:
-        print(f"{tol:10.1e} | {rel_err:12.3e} | {abs_err:12.3e}")
+        if isinstance(tol, str):
+            print(f"{tol:>10} | {rel_err:12.3e} | {abs_err:12.3e}")
+        else:
+            print(f"{tol:10.1e} | {rel_err:12.3e} | {abs_err:12.3e}")
 
 
 def plot_pressure_err(results):
 
-    tol = np.array([r[0] for r in results])
-    rel_err = np.array([r[1] for r in results])
+    numeric = [r for r in results if not isinstance(r[0], str)]
+
+    tol = np.array([r[0] for r in numeric])
+    rel_err = np.array([r[1] for r in numeric])
 
     plt.figure()
     plt.loglog(tol, rel_err, '-o', label="Relative Error")
@@ -120,6 +132,38 @@ def plot_pressure_err(results):
     plt.ylabel("Relative Flux Error")
     plt.grid(True)
     plt.title("Flux Relative Error vs Tolerance")
+
+    plt.legend(loc="upper left", frameon=True, fontsize=12)
+
+    plt.show()
+
+def print_saturation_err(results):
+
+    print("\n=== Saturation Results ===")
+    print(f"{'tol':>10} | {'rel error':>12} | {'abs error':>12}")
+    print("-"*40)
+
+    for tol, rel_err, abs_err in results:
+        if isinstance(tol, str):
+            print(f"{tol:>10} | {rel_err:12.3e} | {abs_err:12.3e}")
+        else:
+            print(f"{tol:10.1e} | {rel_err:12.3e} | {abs_err:12.3e}")
+
+def plot_saturation_err(results):
+
+    numeric = [r for r in results if not isinstance(r[0], str)]
+
+    tol = np.array([r[0] for r in numeric])
+    rel_err = np.array([r[1] for r in numeric])
+
+    plt.figure()
+    plt.loglog(tol, rel_err, '-o', label="Relative Error")
+    plt.loglog(tol, tol, '--', label="y = tol")
+
+    plt.xlabel("Tolerance")
+    plt.ylabel("Relative Saturation Error")
+    plt.grid(True)
+    plt.title("Saturation Error vs Tolerance")
 
     plt.legend(loc="upper left", frameon=True, fontsize=12)
 

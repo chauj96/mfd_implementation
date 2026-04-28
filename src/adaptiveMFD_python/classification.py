@@ -12,6 +12,20 @@ def classify_cells(cell_struct, face_struct, m_proj, p_proj,
     n_cells = len(cell_struct)
     n_faces = len(face_struct)
 
+    # Full MFD (will be used as a reference saturation solution)
+    if isinstance(tol, str) and tol == "full":
+        cellMarking = np.ones(n_cells, dtype=int)
+
+        print(f"tol = full | TPFA cells = 0 / {n_cells}")
+
+        if not os.path.exists(out_dir):
+            os.makedirs(out_dir)
+
+        filename = os.path.join(out_dir, "mesh_full.vtu")
+        write_vtu(filename, vertices, cell_struct, face_struct, cellMarking, "cellMarking", "cell_plot")
+
+        return cellMarking
+
     face_centers = np.array([face_struct[f]["center"] for f in range(n_faces)])
     d_all = a * face_centers[:,0] + b * face_centers[:,1] + c * face_centers[:,2] + d
 
@@ -57,11 +71,17 @@ def classify_cells(cell_struct, face_struct, m_proj, p_proj,
 
     tpfa_count = n_cells - np.sum(cellMarking)
 
-    print(f"tol = {tol:.1e} | TPFA cells = {tpfa_count} / {n_cells}")
+    if isinstance(tol, str):
+        print(f"tol = {tol} | TPFA cells = {tpfa_count} / {n_cells}")
+    else:
+        print(f"tol = {tol:.1e} | TPFA cells = {tpfa_count} / {n_cells}")
 
     # Export VTU
-    filename = os.path.join(out_dir, f"mesh_tol_{tol:.1e}.vtu")
+    if isinstance(tol, str):
+        filename = os.path.join(out_dir, f"mesh_{tol}.vtu")
+    else:
+        filename = os.path.join(out_dir, f"mesh_tol_{tol:.1e}.vtu")
 
-    write_vtu(filename, vertices, cell_struct, face_struct, cellMarking, "cellMarking")
+    write_vtu(filename, vertices, cell_struct, face_struct, cellMarking, "cellMarking", "cell_plot")
 
     return cellMarking

@@ -7,10 +7,7 @@ from operators import orth
 # Pressure solver for adaptive MFD:
 # builds global system (M, B, T), applies BCs, and solves via direct or GMRES
 
-def solve_pressure(cell_struct, face_struct, cellMarking,
-                   dt_pressure=1.0, g_c=0.0,
-                   eps_solver=1e-11, gmres_niter=50,
-                   solver_type="direct"):
+def solve_pressure(cell_struct, face_struct, cellMarking, inner_product="simple", dt_pressure=1.0, g_c=0.0, eps_solver=1e-11, gmres_niter=50, solver_type="direct"):
 
     n_cells = len(cell_struct)
     n_faces = len(face_struct)
@@ -54,13 +51,43 @@ def solve_pressure(cell_struct, face_struct, cellMarking,
             td = np.sum(C * (N @ K), axis=1) / np.sum(C * C, axis=1)
             invT = np.diag(1.0 / np.abs(td))
         else:
-            # Simple
-            t_loc = 6.0 * np.sum(np.diag(K)) / dim
-            Q = orth(N / Af_vec[:, None])
-            U = np.eye(cell_nf) - Q @ Q.T
-            di = np.diag(1.0 / Af_vec)
-            invT_reg = (v / t_loc) * (di @ U @ di)
-            invT = (C @ np.linalg.solve(K, C.T)) / v + invT_reg
+            if inner_product == "simple":
+                t_loc = 6.0 * np.sum(np.diag(K)) / dim
+                Q = orth(N / Af_vec[:, None])
+                U = np.eye(cell_nf) - Q @ Q.T
+                di = np.diag(1.0 / Af_vec)
+                invT_reg = (v / t_loc) * (di @ U @ di)
+                invT = (C @ np.linalg.solve(K, C.T)) / v + invT_reg
+
+            elif inner_product == "quasi_tpfa":
+                W = N @ K @ N.T
+                Qn = orth(N)
+                P = np.eye(Qn.shape[0]) - Qn @ Qn.T
+                diW = np.diag(1.0 / np.diag(W))
+                invT_reg = (v / 2.0) * (P @ diW @ P)
+                invT = (C @ np.linalg.solve(K, C.T)) / v + invT_reg
+
+            elif inner_product == "general_parametric":
+                W = N @ K @ N.T
+                Qn = orth(N)
+                P = np.eye(cell_nf) - Qn @ Qn.T
+                diW = np.diag(1.0 / np.diag(W))
+                invT_reg = (v / cell_nf) * (P @ diW @ P)
+                invT = (C @ np.linalg.solve(K, C.T)) / v + invT_reg
+
+            elif inner_product == "bdvlm":
+                R = np.diag(Af_vec) @ C
+                Nbd = (signf_vec[:, None] * Nf_mat) @ K
+
+                M0 = R @ np.linalg.solve(R.T @ Nbd, R.T)
+
+                NbdTNbd = Nbd.T @ Nbd
+                PN = np.eye(cell_nf) - Nbd @ np.linalg.solve(NbdTNbd, Nbd.T)
+
+                invT = np.diag(1.0 / Af_vec) @ (M0 + (1.0 / cell_nf) * PN) @ np.diag(1.0 / Af_vec)
+
+            else:
+                raise ValueError(f"Unknown inner_product: {inner_product}")
 
         sign_mat = np.outer(signs, signs)
 
