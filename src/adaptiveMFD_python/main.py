@@ -7,6 +7,7 @@ from pressure_solver import solve_pressure
 from saturation_solver import solve_saturation
 from io_utils import print_pressure_err, plot_pressure_err, print_saturation_err, plot_saturation_err, write_vtu
 
+
 # ===== Step 1: Load mesh =====
 cell_struct, face_struct, vertices, Lx, Ly, Lz = load_mesh("twoFaults")
 
@@ -31,9 +32,9 @@ Sw_inj = 1.0
 
 # ===== Step 3: Classify cells and solve a pressure field =====
 # Solver setup
-tol_list = np.array([1e-8])
+tol_list = np.array([1e-6])
 n_tol = len(tol_list)
-inner_product = "bdvlm"
+inner_product = "simple"
 eps_solver = 1e-11
 gmres_niter = 200
 solver_type = "direct"  # "direct" or "iterative"
