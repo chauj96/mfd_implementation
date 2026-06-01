@@ -15,3 +15,9 @@ matlab.prf
 *.mlproj
 *.m~*
 
+# JetBrains/PyCharm IDE
+**.idea/
+*.iws
+*.iml
+*.ipr
+
