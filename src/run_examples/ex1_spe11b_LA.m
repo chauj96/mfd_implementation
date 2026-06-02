@@ -171,13 +171,13 @@ fprintf('Full MFD GMRES iters: %d\n', total_iters_full);
 fprintf('Full MFD solve time  : %.6f s\n', solve_time_full);
 fprintf('Full MFD rel error vs projection solution = %.6e\n', norm(m_full - m_proj) / norm(m_proj));
 
-%% ===== ADAPTIVE LOOP =====
+%% ===== ADAPTIVE LOOP (LOCAL ADAPTATION) =====
 for it = 1:n_tol
     tol = tol_values(it);
     fprintf('\n=== Running with tol = %e (iter %d/%d) ===\n', tol, it, n_tol);
 
-    %% Step 4: Apply cell classification
-    res_3D = zeros(n_faces, 1);
+    %% Step 4: Apply cell classification (Local Adaptation)
+    cellMarking_3D = false(n_cells, 1);
 
     for cn = 1:n_cells
         face_ids = cell_struct(cn).faces;
@@ -186,35 +186,36 @@ for it = 1:n_tol
         M_K = signs .* cell_struct(cn).M;
         B_K = cell_struct(cn).B;
 
-        mK = signs .* m_proj(face_ids);
+        [mK, pK, d_K] = projectLocalAnalyticalField3D(cn, cell_struct, face_struct, face_centers, a, b, c, d);
+
+        mK = signs .* mK;
         pK = p_proj(cn);
-        d_K = signs .* d_all(face_ids);
+        d_K = signs .* d_K;
 
         DeltaP_K = -B_K * pK + d_K;
         R_K = (M_K * mK - B_K * pK + d_K) / norm(DeltaP_K);
-        res_3D(face_ids) = res_3D(face_ids) + R_K;
+
+        % Compute the Local Adaptation indicators
+        r_norm = norm(R_K, Inf);
+
+        % If cell triggers LA, mark it and print diagnostic
+        if r_norm > tol
+            cellMarking_3D(cn) = true;
+        end
     end
-
-    % Vectorized cell marking via accumarray
-    face_exceeds = abs(res_3D) > tol;
-    face_counts = arrayfun(@(cc) length(cc.faces), cell_struct(:));
-    all_face_ids = cell2mat(arrayfun(@(cc) cc.faces(:), cell_struct(:), 'UniformOutput', false));
-    all_cell_ids = repelem((1:n_cells)', face_counts);
-
-    cellMarking_3D = accumarray(all_cell_ids, face_exceeds(all_face_ids), [n_cells 1], @any);
-    cellMarking_3D = double(cellMarking_3D);
 
     tpfa_count = n_cells - sum(cellMarking_3D);
     fprintf('tol = %.1e | TPFA cells = %d / %d\n', tol, tpfa_count, n_cells);
 
     % Export classification to VTU
-    outDir = 'output_spe11b';
+    outDir = 'output_spe11b_LA';
     if ~exist(outDir, 'dir')
         mkdir(outDir);
     end
 
-    filename = fullfile(outDir, sprintf('mesh_l_%d.vtu', it-1));
+    filename = fullfile(outDir, sprintf('mesh_l_LA_%d.vtu', it-1));
     writeExtrudedMeshVTP(filename, V3, cell_struct, face_struct, struct('cellMarking',cellMarking_3D));
+    
     %% Step 5: Solve the global system after classification
     rows = zeros(total_nnz, 1);
     cols = zeros(total_nnz, 1);
@@ -249,7 +250,7 @@ for it = 1:n_tol
             invT = diag(1 ./ abs(td));
 
         else
-            % SIMPLE 
+            % SIMPLE
             t_loc = 6 * sum(diag(K)) / dim;
             Q  = orth(N ./ af);
             U  = eye(cell_nf) - Q * Q';
@@ -263,7 +264,7 @@ for it = 1:n_tol
             % P  = eye(cell_nf) - Qn * Qn';
             % diW = diag(1 ./ diag(W));
             % invT_reg = (v / cell_nf) * (P * diW * P);
-            % invT = (C * (K \ C')) / v + invT_reg;
+            % invT = (C * (K \\ C')) / v + invT_reg;
         end
 
         sign_mat = signs * signs';
@@ -376,7 +377,7 @@ loglog(tol_values, tol_values, ':', ...
 
 xlabel('Tolerance', 'FontSize', 22);
 ylabel('Error', 'FontSize', 22);
-title('Mass Flux Error vs Tolerance', 'FontSize', 24);
+title('Mass Flux Error vs Tolerance (LA)', 'FontSize', 24);
 legend('Location', 'northwest', 'FontSize', 18);
 
 set(gca, ...
@@ -399,8 +400,8 @@ function y = block_prec(r, F_mm, A_pm, F_S, num_m_dofs)
     r2 = r(num_m_dofs+1:end);
 
     y1 = F_mm \ r1;
-    y2 = F_S \ (r2 - A_pm*y1);
+    y2 = F_S \ (r2 - A_pm * y1);
 
     y = [y1; y2];
-
 end
+

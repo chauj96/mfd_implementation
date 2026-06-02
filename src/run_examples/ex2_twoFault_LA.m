@@ -1,4 +1,4 @@
-close all; clear; clc; 
+close all; clear; clc;
 addpath(genpath('FACTORIZE'))
 
 %% ===== Step 1: build mesh =====
@@ -40,7 +40,7 @@ d_all = a*face_centers(:,1) + b*face_centers(:,2) + c*face_centers(:,3) + d;
 
 fprintf('\n');
 fprintf('============================================================\n');
-fprintf('                    TWO FAULT TEST CASE\n');
+fprintf('             TWO FAULT TEST CASE (LOCAL ADAPTATION)\n');
 fprintf('============================================================\n');
 fprintf('Number of cells : %d\n', n_cells);
 fprintf('Number of faces : %d\n', n_faces);
@@ -164,7 +164,7 @@ for itol = 1:n_tol
             tol, itol, n_tol);
     fprintf('============================================================\n');
 
-    res_3D = zeros(n_faces,1);
+    cellMarking_3D = false(n_cells, 1);
 
     for cn = 1:n_cells
         face_ids = cell_struct(cn).faces;
@@ -173,35 +173,33 @@ for itol = 1:n_tol
         M_K = signs .* cell_struct(cn).M;
         B_K = cell_struct(cn).B;
 
-        mK = signs .* m_proj(face_ids);
+        [mK, pK, d_K] = projectLocalAnalyticalField3D(cn, cell_struct, face_struct, face_centers, a, b, c, d);
+
+        mK = signs .* mK;
         pK = p_proj(cn);
-        d_K = signs .* d_all(face_ids);
+        d_K = signs .* d_K;
 
         DeltaP_K = -B_K * pK + d_K;
         R_K = (M_K * mK - B_K * pK + d_K) / norm(DeltaP_K);
 
-        res_3D(face_ids) = res_3D(face_ids) + R_K;
+        % Compute the Local Adaptation indicators
+        r_norm = norm(R_K, Inf);
+
+        % Local Adaptation (LA) Approach: max absolute norm over the local cell residual
+        if r_norm > tol
+            cellMarking_3D(cn) = true;
+        end
     end
 
-    face_exceeds = abs(res_3D) > tol;
-
-    face_counts = arrayfun(@(cc) length(cc.faces), cell_struct(:));
-    all_face_ids = cell2mat(arrayfun(@(cc) cc.faces(:), cell_struct(:), 'UniformOutput', false));
-    all_cell_ids = repelem((1:n_cells)', face_counts);
-
-    cellMarking_3D = accumarray(all_cell_ids, face_exceeds(all_face_ids), [n_cells 1], @any);
     tpfa_count = n_cells - sum(cellMarking_3D);
     fprintf('tol = %.1e | TPFA cells = %d / %d\n', tol, tpfa_count, n_cells);
 
      % Export to VTU file and save the file (only for the first tol to avoid many files)
      outDir = 'output_twoFault';
-    
+
      if ~exist(outDir, 'dir')
          mkdir(outDir);
      end
-    
-     filename = fullfile(outDir, sprintf('mesh_l_%d.vtu', itol-1));
-     writeExtrudedMeshVTP(filename, V3, cell_struct, face_struct, struct('cellMarking',cellMarking_3D));
 
     %% pressure solve (ORIGINAL)
     rows = zeros(total_nnz,1);
@@ -229,7 +227,7 @@ for itol = 1:n_tol
         if cellMarking_3D(cc) == 0
             td = sum(C .* (N * K), 2) ./ sum(C .* C, 2);
             invT = diag(1 ./ abs(td));
-        else            
+        else
             % Simple
             % t_loc = 6 * sum(diag(K)) / dim;
             % Q  = orth(N ./ Af_vec);
@@ -323,16 +321,16 @@ for itol = 1:n_tol
 
     plot_sat_error = max(sat_error_all, 1e-16);
     plot_abs_sat_error = max(abs_sat_errors, 1e-16);
-    
+
     fprintf('relative flux error  : %.6e\n', ...
             rel_flux_errors(itol));
-    
+
     fprintf('relative sat error   : %.6e\n', ...
             sat_error_all(itol));
-    
+
     fprintf('============================================================\n');
 
-    filename = fullfile(outDir, sprintf('sat_tol_%d.vtu', itol));
+    filename = fullfile(outDir, sprintf('sat_tol_LA_%d.vtu', itol));
     writeExtrudedMeshVTP(filename, V3, cell_struct, face_struct, struct('saturation', Sw_final, 'pressure', p_num));
 end
 
@@ -357,7 +355,7 @@ loglog(tol_list, tol_list, ':', 'LineWidth', 1.5, 'Color', c2, ...
 
 xlabel('Tolerance', 'FontSize', 22);
 ylabel('Error', 'FontSize', 22);
-title('Mass Flux Error vs Tolerance', 'FontSize', 24);
+title('Mass Flux Error vs Tolerance (LA)', 'FontSize', 24);
 
 legend('Location', 'northwest', 'FontSize', 18);
 
@@ -386,7 +384,7 @@ loglog(tol_list, tol_list, ':', 'LineWidth', 1.5, 'Color', c2, ...
 
 xlabel('Tolerance', 'FontSize', 22);
 ylabel('Error', 'FontSize', 22);
-title('Saturation Error vs Tolerance', 'FontSize', 24);
+title('Saturation Error vs Tolerance (LA)', 'FontSize', 24);
 
 legend('Location', 'northwest', 'FontSize', 18);
 set(gca, 'FontSize', 18, 'LineWidth', 1.5);
@@ -401,41 +399,41 @@ function [Sw_hist, time_hist] = runSinglePhaseTransportFixedFluxImplicit( ...
     cell_struct, face_struct, m_num, Sw0, Sw_inj, tEnd, dt)
 
     n_cells = length(cell_struct);
-    
+
     Sw = Sw0(:);
     t = 0;
-    
+
     Sw_hist = Sw;
     time_hist = t;
-    
+
     Vc  = arrayfun(@(c) c.volume, cell_struct)';
     phi = arrayfun(@(c) c.phi, cell_struct)';
     acc = phi .* Vc;
-    
+
     while t < tEnd
         dt_step = min(dt, tEnd - t);
-    
+
         rows = [];
         cols = [];
         vals = [];
         rhs  = (acc / dt_step) .* Sw;
-    
+
         for c = 1:n_cells
             rows(end+1,1) = c;
             cols(end+1,1) = c;
             vals(end+1,1) = acc(c) / dt_step;
-    
+
             faces = cell_struct(c).faces;
             sgns  = cell_struct(c).faces_orientation;
-    
+
             for k = 1:length(faces)
                 f = faces(k);
                 Fcf = sgns(k) * m_num(f);
                 neigh = face_struct(f).cells;
-    
+
                 if numel(neigh) == 2
                     other = neigh(neigh ~= c);
-    
+
                     if Fcf >= 0
                         rows(end+1,1) = c;
                         cols(end+1,1) = c;
@@ -445,7 +443,7 @@ function [Sw_hist, time_hist] = runSinglePhaseTransportFixedFluxImplicit( ...
                         cols(end+1,1) = other;
                         vals(end+1,1) = Fcf;
                     end
-    
+
                 elseif numel(neigh) == 1
                     if Fcf >= 0
                         rows(end+1,1) = c;
@@ -457,14 +455,15 @@ function [Sw_hist, time_hist] = runSinglePhaseTransportFixedFluxImplicit( ...
                 end
             end
         end
-    
+
         A = sparse(rows, cols, vals, n_cells, n_cells);
-    
+
         Sw = A \ rhs;
         Sw = max(0, min(1, Sw));
-    
+
         t = t + dt_step;
         Sw_hist(:, end+1) = Sw;
         time_hist(end+1) = t;
     end
 end
+
