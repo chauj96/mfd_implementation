@@ -1,4 +1,4 @@
-close all; clear; clc; 
+% close all; clear; clc; 
 addpath(genpath('FACTORIZE'))
 
 %% ===== Step 1: build mesh =====
@@ -9,7 +9,7 @@ Lx = 1; Ly = 1; Lz = 0.4;
 
 %% ===== Step 2: physical setup =====
 ip_type = 'tpfa';
-tol_list = [1, 1e-2, 1e-4, 1e-6, 1e-8];
+tol_list = [1, 1e-1, 1e-2, 1e-4, 1e-6, 1e-8];
 n_tol = length(tol_list);
 
 eps_solver = 1e-11;
@@ -24,6 +24,23 @@ Sw_inj = 1.0;
 
 % 2 types of permeability tensor: 'layered_isotropy' and 'het_anisotropy'
 [cell_struct, face_struct, phys] = initPhysicalParams3D(cell_struct, face_struct, Lx, Ly, Lz, 'het_anisotropy', 'corner2corner');
+
+n_cells = length(cell_struct);
+
+perm_plot = zeros(n_cells,1);
+
+for c = 1:n_cells
+    perm_plot(c) = log10(cell_struct(c).K(1,1));
+end
+
+writeExtrudedMeshVTP( ...
+    'layered_perm.vtu', ...
+    V3, ...
+    cell_struct, ...
+    face_struct, ...
+    perm_plot, ...
+    'log10(K)', ...
+    'saturation_plot');
 
 % analytical projection
 a = -1/Lx; b = -1/Ly; c = -1/Lz; d = 1;
