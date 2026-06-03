@@ -95,11 +95,19 @@ for cc = 1:n_cells
 
     % ===== FULL MFD INNER PRODUCT =====
     % SIMPLE MFD
-    t_loc = 6 * sum(diag(K)) / dim;
-    Q  = orth(N ./ af);
-    U  = eye(cell_nf) - Q * Q';
-    di = diag(1 ./ af);
-    invT_reg = (v / t_loc) * (di * U * di);
+    % t_loc = 6 * sum(diag(K)) / dim;
+    % Q  = orth(N ./ af);
+    % U  = eye(cell_nf) - Q * Q';
+    % di = diag(1 ./ af);
+    % invT_reg = (v / t_loc) * (di * U * di);
+    % invT = (C * (K \ C')) / v + invT_reg;
+
+    % Quasi TPFA
+    W  = N * K * N';
+    Qn = orth(N);
+    P  = eye(size(Qn,1)) - Qn * Qn';
+    diW = diag(1 ./ diag(W));
+    invT_reg = (v / 2) * (P * diW * P);
     invT = (C * (K \ C')) / v + invT_reg;
 
     % General Parametric
@@ -251,11 +259,19 @@ for it = 1:n_tol
 
         else
             % SIMPLE 
-            t_loc = 6 * sum(diag(K)) / dim;
-            Q  = orth(N ./ af);
-            U  = eye(cell_nf) - Q * Q';
-            di = diag(1 ./ af);
-            invT_reg = (v / t_loc) * (di * U * di);
+            % t_loc = 6 * sum(diag(K)) / dim;
+            % Q  = orth(N ./ af);
+            % U  = eye(cell_nf) - Q * Q';
+            % di = diag(1 ./ af);
+            % invT_reg = (v / t_loc) * (di * U * di);
+            % invT = (C * (K \ C')) / v + invT_reg;
+
+            % Quasi TPFA
+            W  = N * K * N';
+            Qn = orth(N);
+            P  = eye(size(Qn,1)) - Qn * Qn';
+            diW = diag(1 ./ diag(W));
+            invT_reg = (v / 2) * (P * diW * P);
             invT = (C * (K \ C')) / v + invT_reg;
 
             % General Parametric

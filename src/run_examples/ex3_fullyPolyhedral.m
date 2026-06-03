@@ -21,8 +21,8 @@ g_c = 0.0;
 dt_pressure = 1.0;
 
 % transport setup
-tEnd = 1;
-dt_transport = 0.1;
+tEnd = 1.0;
+dt_transport = 0.055;
 
 Sw0 = zeros(length(cell_struct),1);
 Sw_inj = 1.0;
