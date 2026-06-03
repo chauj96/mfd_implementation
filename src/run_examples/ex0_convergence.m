@@ -6,7 +6,7 @@ addpath(genpath('FACTORIZE'))
 %    true  -> Global  Adaptation (GA): face-accumulated residual
 %    false -> Local   Adaptation (LA): cell inf-norm residual
 % ============================================================
-use_GA = false;
+use_GA = true;
 
 if use_GA
     method_tag   = 'global_adaptation';
@@ -139,17 +139,23 @@ for it = 1:n_cases
     fprintf('  Max indicator – K-orthogonal : %.4e\n', max_ind_orth(it));
     fprintf('  Max indicator – skewed ribbon : %.4e\n', max_ind_dist(it));
 
-    % Exact solution (quadratic manufactured field)
+    % Exact solution: non-polynomial with oscillations in the central region.
+    %   p = sin(2*pi*x)*sin(2*pi*y) + x
+    %   grad(p) = [2*pi*cos(2*pi*x)*sin(2*pi*y) + 1 ; 2*pi*sin(2*pi*x)*cos(2*pi*y) ; 0]
+    %   u = -grad(p)
+    %   div(u) = 8*pi^2 * sin(2*pi*x)*sin(2*pi*y)  (oscillatory source, zero mean)
     xc = cell_centers_mat(:,1);  yc = cell_centers_mat(:,2);
-    p_exact = xc.^2 + 2*yc.^2 + xc.*yc;
+    p_exact = sin(2*pi*xc).*sin(2*pi*yc) + xc;
 
     bnd_faces = find(arrayfun(@(f) length(f.cells) == 1, face_struct));
 
+    % Exact flux: m(f) = A_f * u . n_f
     m_exact = zeros(n_faces, 1);
     for f = 1:n_faces
         xf = face_struct(f).center(:);
         nf = face_struct(f).normal(:);
-        u  = -[2*xf(1)+xf(2); 4*xf(2)+xf(1); 0];
+        u  = -[2*pi*cos(2*pi*xf(1))*sin(2*pi*xf(2)) + 1 ; ...
+               2*pi*sin(2*pi*xf(1))*cos(2*pi*xf(2))     ; 0];
         m_exact(f) = face_struct(f).area * dot(u, nf);
     end
 
@@ -218,14 +224,19 @@ for it = 1:n_cases
         for fi = 1:length(bnd_faces)
             f  = bnd_faces(fi);
             xf = face_struct(f).center;
-            face_struct(f).BC_pressure = xf(1)^2 + 2*xf(2)^2 + xf(1)*xf(2);
+            face_struct(f).BC_pressure = sin(2*pi*xf(1))*sin(2*pi*xf(2)) + xf(1);
         end
 
         rhs_D = dirichletBoundary(cell_struct, face_struct);
 
+        % Saddle-point: A*sol = -RHS, row 2 gives  B*m = -f_src_rhs
+        % We need B*m = div(u)*vol = 8*pi^2*sin(2*pi*x)*sin(2*pi*y)*vol
+        % => f_src_rhs = -8*pi^2 * sin(2*pi*xc)*sin(2*pi*yc) * vol
         f_src = zeros(n_cells, 1);
         for c = 1:n_cells
-            f_src(c) = 6.0 * cell_struct(c).volume;
+            xcc = cell_struct(c).center(1);
+            ycc = cell_struct(c).center(2);
+            f_src(c) = -8*pi^2 * sin(2*pi*xcc)*sin(2*pi*ycc) * cell_struct(c).volume;
         end
 
         RHS   = [rhs_D; f_src];
