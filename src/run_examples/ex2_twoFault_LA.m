@@ -17,20 +17,20 @@ gmres_niter = 1000;
 g_c = 0.0;
 dt_pressure = 1.0;
 
-tEnd = 50 * 0.27;
-dt_transport = 0.1;
+dt_transport = 10.0;
+tEnd = dt_transport;
 Sw0 = zeros(length(cell_struct),1);
 Sw_inj = 1.0;
 
 % 2 types of permeability tensor: 'layered_isotropy' and 'het_anisotropy'
-[cell_struct, face_struct, phys] = initPhysicalParams3D(cell_struct, face_struct, Lx, Ly, Lz, 'layered_isotropy', 'corner2corner');
+[cell_struct, face_struct, phys] = initPhysicalParams3D(cell_struct, face_struct, Lx, Ly, Lz, 'identity', 'corner2corner');
+
+% analytical projection
+a = 1/Lx; b = 1/Ly; c = 1/Lz; d = 1;
+[m_proj, p_proj] = projectAnalyticalField3D(cell_struct, face_struct, phys, a, b, c, d);
 
 cell_struct = createMmatrix(cell_struct, face_struct, ip_type);
 cell_struct = createBmatrix(cell_struct);
-
-% analytical projection
-a = -1/Lx; b = -1/Ly; c = -1/Lz; d = 1;
-[m_proj, p_proj] = projectAnalyticalField3D(cell_struct, face_struct, phys, a, b, c, d);
 
 n_cells = length(cell_struct);
 n_faces = length(face_struct);
@@ -173,7 +173,7 @@ for itol = 1:n_tol
         M_K = signs .* cell_struct(cn).M;
         B_K = cell_struct(cn).B;
 
-        [mK, pK, d_K] = projectLocalAnalyticalField3D(cn, cell_struct, face_struct, phys, a, b, c, d);
+        [mK, pK, d_K] = projectLocalAnalyticalField3D(cn, cell_struct, face_struct, face_centers, a, b, c, d);
 
         mK = signs .* mK;
         pK = p_proj(cn);
@@ -200,9 +200,6 @@ for itol = 1:n_tol
      if ~exist(outDir, 'dir')
          mkdir(outDir);
      end
-
-     filename = fullfile(outDir, sprintf('mesh_l_LA_%d.vtu', itol-1));
-     writeExtrudedMeshVTP(filename, V3, cell_struct, face_struct, cellMarking_3D, 'cellMarking', 'cell_plot');
 
     %% pressure solve (ORIGINAL)
     rows = zeros(total_nnz,1);
@@ -306,6 +303,7 @@ for itol = 1:n_tol
     sol3 = matrix \ (-RHS);
 
     m_num = sol3(1:n_faces);
+    p_num = sol3(n_faces+1:n_faces+n_cells);
     rel_flux_errors(itol) = norm(m_num - m_full) / norm(m_full);
     abs_flux_errors(itol) = norm(m_num - m_full);
 
@@ -333,7 +331,7 @@ for itol = 1:n_tol
     fprintf('============================================================\n');
 
     filename = fullfile(outDir, sprintf('sat_tol_LA_%d.vtu', itol));
-    writeExtrudedMeshVTP(filename, V3, cell_struct, face_struct, Sw_final, 'saturation', 'saturation_plot');
+    writeExtrudedMeshVTP(filename, V3, cell_struct, face_struct, struct('saturation', Sw_final, 'pressure', p_num));
 end
 
 %% ===== FLUX ERROR PLOT =====

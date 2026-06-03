@@ -1,9 +1,8 @@
-function [m_local_proj, p_local_proj, d_local_proj] = projectAnalyticalField3D(cell_idx, cell_struct, face_struct, phys, a, b, c, d)
+function [m_local_proj, p_local_proj, d_local_proj] = projectLocalAnalyticalField3D(cell_idx, cell_struct, face_struct, face_centers, a, b, c, d)
 % p(x,y,z) = a x + b y + c z + d
 % gradp = [a; b; c]
 %
 % m_proj(f) = - A_f * (K * gradp) · n_f
-    face_centers = reshape([face_struct.center], 3, [])';
 
     % K_tensor = phys.K_tensor;     
     gradp = [a; b; c];             

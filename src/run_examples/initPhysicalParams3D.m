@@ -24,13 +24,13 @@ function [cell_struct, face_struct, phys] = initPhysicalParams3D(cell_struct, fa
             z = cell_struct(c).center(3);
     
             if z < 0.13
-                k_base = 4;
+                k_base = 1.0e-4;
     
             elseif z < 0.26
                 k_base = 1;
     
             else
-                k_base = 0.1;
+                k_base = 1.0e+3;
             end
     
             cell_struct(c).K = k_base * eye(3);
@@ -44,20 +44,20 @@ function [cell_struct, face_struct, phys] = initPhysicalParams3D(cell_struct, fa
             z = cell_struct(c).center(3);
     
             if z < 0.13
-                k_base = 4;
+                k_base = 1.0e-4;
     
             elseif z < 0.26
                 k_base = 1;
     
             else
-                k_base = 0.1;
+                k_base = 1.0e+3;
             end
     
             % Random heterogeneous field
-            kx = k_base * exp(0.1 * randn);
-
-            ky = 0.5 * kx;
-            kz = 0.2 * kx;
+            %kx = k_base * exp(0.1 * randn);
+            kx = k_base;
+            ky = 100.0 * kx;
+            kz = 0.01 * kx;
 
             cell_struct(c).K = diag([kx, ky, kz]);
             cell_struct(c).phi = phi_vals;
@@ -102,7 +102,7 @@ function [cell_struct, face_struct, phys] = initPhysicalParams3D(cell_struct, fa
         
     elseif strcmp(bc_option, 'corner2corner')
         % Reference pressure gradient
-        grad_pref = [-1/Lx; -1/Ly; -1/Lz];
+        grad_pref = [+1/Lx; +1/Ly; +1/Lz];
         % m_ref_vec = -K_tensor * grad_pref;
 
         % Boundary faces (all exterior faces)
