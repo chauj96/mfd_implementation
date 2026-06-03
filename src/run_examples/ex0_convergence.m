@@ -269,7 +269,7 @@ end
 ref2 = (h_list / h_list(1)).^2 * rel_p_errors(1, n_tau) * 0.3;
 loglog(h_list, ref2, '--k', 'HandleVisibility', 'off');
 text(h_list(2), ref2(2)*0.35, 'O(h^2)', 'FontSize', 12, 'Color', [0.3 0.3 0.3]);
-xlabel('Grid spacing  h', 'FontSize', 14);
+xlabel('Cell size  h', 'FontSize', 14);
 ylabel('Relative L^2 error', 'FontSize', 14);
 title(sprintf('Pressure Convergence vs h  (%s)', method_label), 'FontSize', 14);
 grid on;  set(gca, 'FontSize', 12);
@@ -288,7 +288,7 @@ end
 ref1 = (h_list / h_list(1)) * rel_m_errors(1, n_tau) * 0.3;
 loglog(h_list, ref1, '--k', 'HandleVisibility', 'off');
 text(h_list(2), ref1(2)*0.35, 'O(h)', 'FontSize', 12, 'Color', [0.3 0.3 0.3]);
-xlabel('Grid spacing  h', 'FontSize', 14);
+xlabel('Cell size  h', 'FontSize', 14);
 ylabel('Relative L^2 error', 'FontSize', 14);
 title(sprintf('Flux Convergence vs h  (%s)', method_label), 'FontSize', 14);
 grid on;  set(gca, 'FontSize', 12);
