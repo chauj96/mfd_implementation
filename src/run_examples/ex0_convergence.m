@@ -6,7 +6,7 @@ addpath(genpath('FACTORIZE'))
 %    true  -> Global  Adaptation (GA): face-accumulated residual
 %    false -> Local   Adaptation (LA): cell inf-norm residual
 % ============================================================
-use_GA = true;
+use_GA = false;
 
 if use_GA
     method_tag   = 'global_adaptation';
@@ -257,60 +257,85 @@ for it = 1:n_cases
     end
 end
 
-%% ===== PLOT 1: PRESSURE L2 CONVERGENCE =====
+%% ===== PLOT SETTINGS =====
+fig_w = 700;  fig_h = 560;
+ax_fs = 13;   title_fs = 14;  leg_fs = 10;
+lw    = 2.0;  msz = 7;
+markers = {'o','s','d','^','v'};
 tau_colors = lines(n_tau);
-fig1 = figure;
+h_colors   = lines(n_cases);
+
+%% ===== PLOT 1: PRESSURE L2 CONVERGENCE =====
+fig1 = figure('Position', [100 100 fig_w fig_h], 'Color', 'w');
+ax1  = axes('Parent', fig1);
 for itau = 1:n_tau
-    loglog(h_list, rel_p_errors(:, itau), '-o', ...
-        'LineWidth', 2, 'Color', tau_colors(itau,:), 'MarkerSize', 7, ...
-        'DisplayName', sprintf('\\tau = %.0e', tau_list(itau)));
-    hold on;
+    loglog(ax1, h_list, rel_p_errors(:, itau), ...
+        ['-' markers{mod(itau-1,numel(markers))+1}], ...
+        'LineWidth', lw, 'Color', tau_colors(itau,:), 'MarkerSize', msz, ...
+        'MarkerFaceColor', tau_colors(itau,:), ...
+        'DisplayName', sprintf('$\\tau = 10^{%d}$', round(log10(tau_list(itau)))));
+    hold(ax1, 'on');
 end
-ref2 = (h_list / h_list(1)).^2 * rel_p_errors(1, n_tau) * 0.3;
-loglog(h_list, ref2, '--k', 'HandleVisibility', 'off');
-text(h_list(2), ref2(2)*0.35, 'O(h^2)', 'FontSize', 12, 'Color', [0.3 0.3 0.3]);
-xlabel('Cell size  h', 'FontSize', 14);
-ylabel('Relative L^2 error', 'FontSize', 14);
-title(sprintf('Pressure Convergence vs h  (%s)', method_label), 'FontSize', 14);
-grid on;  set(gca, 'FontSize', 12);
-lgd1 = legend('Location', 'southoutside', 'FontSize', 10, 'NumColumns', 3);
-lgd1.Box = 'off';
+ref2 = (h_list / h_list(1)).^2 * min(rel_p_errors(1,:)) * 0.15;
+loglog(ax1, h_list, ref2, '--', 'Color', [0.4 0.4 0.4], 'LineWidth', 1.2, 'HandleVisibility', 'off');
+text(h_list(3), ref2(3)*0.4, '$\mathcal{O}(h^2)$', ...
+    'Interpreter', 'latex', 'FontSize', 12, 'Color', [0.4 0.4 0.4], 'Parent', ax1);
+set(ax1, 'FontSize', ax_fs, 'Box', 'on', 'LineWidth', 1.0, ...
+    'XGrid', 'on', 'YGrid', 'on', 'GridAlpha', 0.25, 'MinorGridAlpha', 0.1, ...
+    'TickLabelInterpreter', 'latex');
+xlabel(ax1, 'Cell size $h$',           'Interpreter', 'latex', 'FontSize', ax_fs+1);
+ylabel(ax1, 'Relative $L^2$ error',    'Interpreter', 'latex', 'FontSize', ax_fs+1);
+title(ax1,  sprintf('Pressure Convergence  (%s)', method_label), 'FontSize', title_fs);
+lgd1 = legend(ax1, 'Interpreter', 'latex', 'Location', 'southoutside', ...
+    'FontSize', leg_fs, 'NumColumns', n_tau, 'Box', 'off');
 exportgraphics(fig1, fullfile(outDir, sprintf('%s_pressure_convergence.pdf', method_tag)), 'ContentType', 'vector');
 
 %% ===== PLOT 2: FLUX L2 CONVERGENCE =====
-fig2 = figure;
+fig2 = figure('Position', [150 100 fig_w fig_h], 'Color', 'w');
+ax2  = axes('Parent', fig2);
 for itau = 1:n_tau
-    loglog(h_list, rel_m_errors(:, itau), '-s', ...
-        'LineWidth', 2, 'Color', tau_colors(itau,:), 'MarkerSize', 7, ...
-        'DisplayName', sprintf('\\tau = %.0e', tau_list(itau)));
-    hold on;
+    loglog(ax2, h_list, rel_m_errors(:, itau), ...
+        ['-' markers{mod(itau-1,numel(markers))+1}], ...
+        'LineWidth', lw, 'Color', tau_colors(itau,:), 'MarkerSize', msz, ...
+        'MarkerFaceColor', tau_colors(itau,:), ...
+        'DisplayName', sprintf('$\\tau = 10^{%d}$', round(log10(tau_list(itau)))));
+    hold(ax2, 'on');
 end
-ref1 = (h_list / h_list(1)) * rel_m_errors(1, n_tau) * 0.3;
-loglog(h_list, ref1, '--k', 'HandleVisibility', 'off');
-text(h_list(2), ref1(2)*0.35, 'O(h)', 'FontSize', 12, 'Color', [0.3 0.3 0.3]);
-xlabel('Cell size  h', 'FontSize', 14);
-ylabel('Relative L^2 error', 'FontSize', 14);
-title(sprintf('Flux Convergence vs h  (%s)', method_label), 'FontSize', 14);
-grid on;  set(gca, 'FontSize', 12);
-lgd2 = legend('Location', 'southoutside', 'FontSize', 10, 'NumColumns', 3);
-lgd2.Box = 'off';
+ref1 = (h_list / h_list(1)) * min(rel_m_errors(1,:)) * 0.15;
+loglog(ax2, h_list, ref1, '--', 'Color', [0.4 0.4 0.4], 'LineWidth', 1.2, 'HandleVisibility', 'off');
+text(h_list(3), ref1(3)*0.4, '$\mathcal{O}(h)$', ...
+    'Interpreter', 'latex', 'FontSize', 12, 'Color', [0.4 0.4 0.4], 'Parent', ax2);
+set(ax2, 'FontSize', ax_fs, 'Box', 'on', 'LineWidth', 1.0, ...
+    'XGrid', 'on', 'YGrid', 'on', 'GridAlpha', 0.25, 'MinorGridAlpha', 0.1, ...
+    'TickLabelInterpreter', 'latex');
+xlabel(ax2, 'Cell size $h$',           'Interpreter', 'latex', 'FontSize', ax_fs+1);
+ylabel(ax2, 'Relative $L^2$ error',    'Interpreter', 'latex', 'FontSize', ax_fs+1);
+title(ax2,  sprintf('Flux Convergence  (%s)', method_label), 'FontSize', title_fs);
+lgd2 = legend(ax2, 'Interpreter', 'latex', 'Location', 'southoutside', ...
+    'FontSize', leg_fs, 'NumColumns', n_tau, 'Box', 'off');
 exportgraphics(fig2, fullfile(outDir, sprintf('%s_flux_convergence.pdf', method_tag)), 'ContentType', 'vector');
 
 %% ===== PLOT 3: TPFA FRACTION vs TAU =====
-fig3 = figure;
-h_colors = lines(n_cases);
+fig3 = figure('Position', [200 100 fig_w fig_h], 'Color', 'w');
+ax3  = axes('Parent', fig3);
 for it = 1:n_cases
-    semilogx(tau_list, tpfa_fracs(it,:)*100, '-o', ...
-        'LineWidth', 2, 'Color', h_colors(it,:), 'MarkerSize', 7, ...
-        'DisplayName', sprintf('h = 1/%d', Nh_list(it)));
-    hold on;
+    semilogx(ax3, tau_list, tpfa_fracs(it,:)*100, ...
+        ['-' markers{mod(it-1,numel(markers))+1}], ...
+        'LineWidth', lw, 'Color', h_colors(it,:), 'MarkerSize', msz, ...
+        'MarkerFaceColor', h_colors(it,:), ...
+        'DisplayName', sprintf('$h = 1/%d$', Nh_list(it)));
+    hold(ax3, 'on');
 end
-xlabel('Tolerance \tau', 'FontSize', 14);
-ylabel('TPFA fraction (%)', 'FontSize', 14);
-title(sprintf('TPFA Cell Fraction vs \\tau  (%s)', method_label), 'FontSize', 14);
-grid on;  set(gca, 'FontSize', 12);
-lgd3 = legend('Location', 'southoutside', 'FontSize', 10, 'NumColumns', 3);
-lgd3.Box = 'off';
+set(ax3, 'FontSize', ax_fs, 'Box', 'on', 'LineWidth', 1.0, 'XDir', 'reverse', ...
+    'XGrid', 'on', 'YGrid', 'on', 'GridAlpha', 0.25, ...
+    'TickLabelInterpreter', 'latex');
+ylim(ax3, [0 105]);
+xlabel(ax3, 'Tolerance $\tau$',        'Interpreter', 'latex', 'FontSize', ax_fs+1);
+ylabel(ax3, 'TPFA fraction (\%)',      'Interpreter', 'latex', 'FontSize', ax_fs+1);
+title(ax3,  sprintf('TPFA Cell Fraction vs $\\tau$  (%s)', method_label), ...
+    'FontSize', title_fs, 'Interpreter', 'latex');
+lgd3 = legend(ax3, 'Interpreter', 'latex', 'Location', 'southoutside', ...
+    'FontSize', leg_fs, 'NumColumns', n_cases, 'Box', 'off');
 exportgraphics(fig3, fullfile(outDir, sprintf('%s_tpfa_fraction.pdf', method_tag)), 'ContentType', 'vector');
 
 %% ===== LOCAL SUBFUNCTIONS =====
