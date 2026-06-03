@@ -6,7 +6,7 @@ addpath(genpath('FACTORIZE'))
 %    true  -> Global  Adaptation (GA): face-accumulated residual
 %    false -> Local   Adaptation (LA): cell inf-norm residual
 % ============================================================
-use_GA = false;
+use_GA = true;
 
 if use_GA
     method_tag   = 'global_adaptation';
