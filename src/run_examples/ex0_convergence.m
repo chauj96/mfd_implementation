@@ -250,7 +250,11 @@ for it = 1:n_cases
         p_num = sol(n_faces+1:end);
 
         rel_p_errors(it, itau) = norm(p_num - p_exact) / norm(p_exact);
-        rel_m_errors(it, itau) = norm(m_num - m_exact) / norm(m_exact);
+
+        % Relative flux error in the discrete energy norm defined via M_adapt
+        dm_flux = m_num - m_exact;
+        rel_m_errors(it, itau) = sqrt(dm_flux' * M_adapt * dm_flux) / sqrt(m_exact' * M_adapt * m_exact);
+
         fprintf('    Rel L2 pressure error = %.6e\n', rel_p_errors(it, itau));
         fprintf('    Rel L2 flux error     = %.6e\n', rel_m_errors(it, itau));
 
